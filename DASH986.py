@@ -5,10 +5,15 @@ import plotly.express as px
 # === CONFIGURACIÓN GENERAL ===
 st.set_page_config(page_title="Dashboard PLAN 986", layout="wide")
 
+st.image("9 años.jpg", use_column_width=True)
+
 # === LOGO Y TÍTULO ===
-st.image("WOM.gif", width=150)
-st.title("📍 Dashboard PLAN 986")
-st.markdown("**By: MALQ**")
+st.markdown("""
+    <div style='text-align: center;'>
+        <h1 style='margin-top: 0;'>📍 Dashboard PLAN 986</h1>
+        <p><strong>By: MLOPEZQ</strong></p>
+    </div>
+""", unsafe_allow_html=True)
 
 # === CARGA DE DATOS ===
 uploaded_file = st.file_uploader("Carga tu archivo Excel PLAN986.xlsx", type=["xlsx"])
