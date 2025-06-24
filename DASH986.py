@@ -5,7 +5,7 @@ import plotly.express as px
 # === CONFIGURACIÓN GENERAL ===
 st.set_page_config(page_title="Dashboard PLAN 986", layout="wide")
 
-st.image("9 años.jpg", use_column_width=True)
+st.image("9 años.jpg", use_container_width=True)
 
 # === LOGO Y TÍTULO ===
 st.markdown("""
