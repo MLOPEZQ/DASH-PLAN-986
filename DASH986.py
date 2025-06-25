@@ -5,7 +5,7 @@ import plotly.express as px
 # === CONFIGURACIÓN GENERAL ===
 st.set_page_config(page_title="Dashboard PLAN 986", layout="wide")
 
-st.image("9 años.jpg", use_container_width=True)
+st.image("9 años.jpg", width=None)
 
 # === LOGO Y TÍTULO ===
 st.markdown("""
@@ -74,7 +74,7 @@ col5.metric("Stopper", mostrar_valor('Stopper'))
 st.subheader("📈 Distribución por Status")
 if 'Estatus' in df_filtrado.columns:
     status_counts = df_filtrado.groupby('Estatus').agg({"Sitio": lambda x: list(x), "Estatus": "count"}).rename(columns={"Estatus": "Cantidad"}).reset_index()
-    status_counts['Estatus Limpio'] = status_counts['Estatus'].str.replace(r'^\d+\s*-*\s*', '', regex=True)
+    status_counts['Estatus Limpio'] = status_counts['Estatus'].str.replace(r'^\d+\.\-\s*', '', regex=True)
     status_counts['Sitios'] = status_counts['Sitio'].apply(lambda x: '<br>'.join(x))
     fig_donut = px.pie(
         status_counts,
@@ -94,13 +94,11 @@ if 'Estatus' in df_filtrado.columns:
 else:
     st.info("No hay datos de estatus para graficar.")
 
-# === INFORMACIÓN BÁSICA ===
+# === INFORMACIÓN BÁSICA Y OTROS DATOS UNIFICADOS ===
 st.subheader("🗂️ Información del Sitio")
-st.dataframe(df_filtrado[['AB+ALt', 'Nombre Sitio', 'Comuna', 'Región', 'Proyecto', 'Complementario', 'Lat', 'Long']], use_container_width=True)
-
-# === TIPO DE SITIO Y RENTA ===
-st.subheader("Otros datos")
-st.dataframe(df_filtrado[['Tipo de Sitio', 'Renta']], use_container_width=True)
+columnas_info = ['AB+ALt', 'Nombre Sitio', 'Comuna', 'Región', 'Proyecto', 'Complementario', 'Lat', 'Long', 'Tipo de Sitio', 'Renta']
+columnas_existentes = [col for col in columnas_info if col in df_filtrado.columns]
+st.dataframe(df_filtrado[columnas_existentes], use_container_width=True)
 
 # === OBSERVACIONES ===
 st.subheader("📝 Comentarios")
@@ -123,6 +121,6 @@ if not mapa_df.empty:
         color_discrete_sequence=["mediumpurple"]
     )
     fig_mapa.update_layout(mapbox_style="open-street-map", margin={"r":0,"t":0,"l":0,"b":0})
-    st.plotly_chart(fig_mapa, use_container_width=True)
+    st.plotly_chart(fig_mapa, use_container_width=True, config={"scrollZoom": True})
 else:
     st.info("No hay coordenadas disponibles para mostrar en el mapa.")
