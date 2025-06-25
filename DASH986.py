@@ -7,7 +7,7 @@ st.image("9 años.jpg", width=None)
 st.markdown("""
     <div style='text-align: center;'>
         <h1 style='margin-top: 0;'>📍 Dashboard PLAN 986</h1>
-        <div style='font-size: 12px; color: gray; margin-top: 30px;'>
+        <div style='font-size: 14px; color: gray; margin-top: 5px;'>
             <em>By MLOPEZQ</em>
         </div>
     </div>
