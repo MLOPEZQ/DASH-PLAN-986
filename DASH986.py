@@ -43,7 +43,7 @@ if sitio_sel != "Todos":
     df_filtrado = df_filtrado[df_filtrado['Sitio'] == sitio_sel]
 
 #MÉTRICAS
-st.subheader("📊 IMPORTANTE")
+st.subheader("📊 SEGUIMIENTO")
 col1, col2, col3, col4, col5 = st.columns(5)
 col1.metric("Total de Sitios", len(df) if gestor_sel == "Todos" else df[df['Gestor'] == gestor_sel].shape[0])
 
@@ -57,9 +57,10 @@ def mostrar_valor(col):
 col3.metric("Forecast", mostrar_valor('Forecast Firma'))
 col5.metric("Stopper", mostrar_valor('Stopper'))
 
-# --- MODIFICACIÓN DE LA VISUALIZACIÓN DE GRÁFICA ---
+
+# VISUALIZACIÓN STATUS
 st.divider()
-st.subheader("📈 Resumen Ejecutivo por Status")
+st.subheader("📈 Resumen ESTATUS")
 
 if 'Estatus' in df_filtrado.columns and not df_filtrado.empty:
     # Preparar datos
@@ -68,17 +69,35 @@ if 'Estatus' in df_filtrado.columns and not df_filtrado.empty:
     status_counts['Sitios'] = status_counts['Sitio'].apply(lambda x: '<br>'.join(x))
     status_counts = status_counts.sort_values('Cantidad', ascending=False)
 
-    # Tarjetas
-    num_cols = 4 # Puedes ajustar el número de columnas
+    # Diccionario de íconos para cada status (puedes personalizarlos)
+    status_icons = {
+        "Eliminado": "🗑️",
+        "Procuración": "🔍",
+        "Carpeta Completa - Pend ING": "📁",
+        "En borrador": "📝",
+        "En búsqueda": "🕵️‍♂️",
+        "Firmado": "✍️",
+        "Standby": "⏸️",
+        "En programación TSS": "📅",
+        "Pendiente TSS": "⏳",
+        "TSS Realizada": "✅"
+    }
+
+    # TARJETAS
+    num_cols = 5 # Ajustado para un mejor espaciado
     cols = st.columns(num_cols)
-    for index, row in status_counts.iterrows():
-        with cols[index % num_cols]:
-            st.metric(label=row['Estatus Limpio'], value=row['Cantidad'])
+    for i, row in enumerate(status_counts.iterrows()):
+        index, data = row
+        with cols[i % num_cols]:
+            # TAR
+            with st.container(border=True):
+                icon = status_icons.get(data['Estatus Limpio'], '📊')
+                st.metric(label=f"{icon} {data['Estatus Limpio']}", value=data['Cantidad'])
 
     st.divider()
-    st.subheader("📊 Detalle Gráfico por Status")
-
-    #Visualización horizontal
+    st.subheader("📊 Detalle Gráfico")
+    
+    # GRAF HORIZONTAL
     status_counts_sorted_for_chart = status_counts.sort_values('Cantidad', ascending=True)
 
     fig_bar = px.bar(
@@ -88,18 +107,19 @@ if 'Estatus' in df_filtrado.columns and not df_filtrado.empty:
         orientation='h',
         text='Cantidad',
         custom_data=['Sitios'],
-        title='Distribución de Sitios por Status'
+        color='Cantidad',  # Agrega un gradiente de color para mayor impacto visual
+        color_continuous_scale=px.colors.sequential.Purples_r
     )
     fig_bar.update_traces(
         textposition='inside',
-        marker_color='#6A0DAD', # Un color púrpura profesional
         hovertemplate='<b>%{y}</b><br>Cantidad: %{x}<br><br><b>Sitios:</b><br>%{customdata[0]}<extra></extra>'
     )
     fig_bar.update_layout(
         yaxis_title=None,
         xaxis_title="Cantidad de Sitios",
         showlegend=False,
-        height=400 + len(status_counts) * 20 # Altura dinámica según la cantidad de status
+        coloraxis_showscale=False, # Oculta la barra de gradiente de color
+        height=400 + len(status_counts) * 20
     )
     st.plotly_chart(fig_bar, use_container_width=True)
 
