@@ -2,11 +2,11 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(page_title="Dashboard PLAN 986", layout="wide")
+st.set_page_config(page_title="Dashboard PLAN 986 (Sitios Complementarios)", layout="wide")
 st.image("9 años.jpg", width=None)
 st.markdown("""
     <div style='text-align: center;'>
-        <h1 style='margin-top: 0;'>📍 Dashboard PLAN 986</h1>
+        <h1 style='margin-top: 0;'>📍 Dashboard PLAN 986 (Sitios Complementarios)</h1>
         <div style='font-size: 14px; color: gray; margin-top: 5px;'>
             <em>By MLOPEZQ</em>
         </div>
@@ -58,7 +58,7 @@ col3.metric("Forecast", mostrar_valor('Forecast Firma'))
 col5.metric("Stopper", mostrar_valor('Stopper'))
 
 
-# VISUALIZACIÓN STATUS
+# TARJETAS
 st.divider()
 st.subheader("📈 Resumen ESTATUS")
 
@@ -67,59 +67,51 @@ if 'Estatus' in df_filtrado.columns and not df_filtrado.empty:
     status_counts = df_filtrado.groupby('Estatus').agg({"Sitio": lambda x: list(x), "Estatus": "count"}).rename(columns={"Estatus": "Cantidad"}).reset_index()
     status_counts['Estatus Limpio'] = status_counts['Estatus'].str.replace(r'^\d+\.\-\s*', '', regex=True)
     status_counts['Sitios'] = status_counts['Sitio'].apply(lambda x: '<br>'.join(x))
-    status_counts = status_counts.sort_values('Cantidad', ascending=False)
+    
+    # AJUSTE
+    status_counts = status_counts.sort_values('Estatus', ascending=True).reset_index(drop=True)
 
-    # Diccionario de íconos para cada status (puedes personalizarlos)
+    # PCTO
     status_icons = {
-        "Eliminado": "🗑️",
-        "Procuración": "🔍",
-        "Carpeta Completa - Pend ING": "📁",
-        "En borrador": "📝",
-        "En búsqueda": "🕵️‍♂️",
-        "Firmado": "✍️",
-        "Standby": "⏸️",
-        "En programación TSS": "📅",
-        "Pendiente TSS": "⏳",
+        "Eliminado": "🗑️", "Procuración": "🔍", "Carpeta Completa - Pend ING": "📁",
+        "En borrador": "📝", "En búsqueda": "🕵️‍♂️", "Firmado": "✍️",
+        "Standby": "⏸️", "En programación TSS": "📅", "Pendiente TSS": "⏳",
         "TSS Realizada": "✅"
     }
 
-    # TARJETAS
-    num_cols = 5 # Ajustado para un mejor espaciado
+    # Visualización TARJETAS
+    num_cols = 5
     cols = st.columns(num_cols)
-    for i, row in enumerate(status_counts.iterrows()):
-        index, data = row
+    for i, row in status_counts.iterrows():
         with cols[i % num_cols]:
-            # TAR
             with st.container(border=True):
-                icon = status_icons.get(data['Estatus Limpio'], '📊')
-                st.metric(label=f"{icon} {data['Estatus Limpio']}", value=data['Cantidad'])
+                icon = status_icons.get(row['Estatus Limpio'], '📊')
+                st.metric(label=f"{icon} {row['Estatus Limpio']}", value=row['Cantidad'])
 
     st.divider()
     st.subheader("📊 Detalle Gráfico")
     
-    # GRAF HORIZONTAL
-    status_counts_sorted_for_chart = status_counts.sort_values('Cantidad', ascending=True)
-
     fig_bar = px.bar(
-        status_counts_sorted_for_chart,
+        status_counts,
         x='Cantidad',
         y='Estatus Limpio',
         orientation='h',
         text='Cantidad',
         custom_data=['Sitios'],
-        color='Cantidad',  # Agrega un gradiente de color para mayor impacto visual
+        color='Cantidad',
         color_continuous_scale=px.colors.sequential.Purples_r
+    )
+    fig_bar.update_layout(
+        yaxis={'categoryorder':'total ascending'},
+        yaxis_title=None,
+        xaxis_title="Cantidad de Sitios",
+        showlegend=False,
+        coloraxis_showscale=False,
+        height=400 + len(status_counts) * 20
     )
     fig_bar.update_traces(
         textposition='inside',
         hovertemplate='<b>%{y}</b><br>Cantidad: %{x}<br><br><b>Sitios:</b><br>%{customdata[0]}<extra></extra>'
-    )
-    fig_bar.update_layout(
-        yaxis_title=None,
-        xaxis_title="Cantidad de Sitios",
-        showlegend=False,
-        coloraxis_showscale=False, # Oculta la barra de gradiente de color
-        height=400 + len(status_counts) * 20
     )
     st.plotly_chart(fig_bar, use_container_width=True)
 
