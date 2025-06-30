@@ -57,29 +57,54 @@ def mostrar_valor(col):
 col3.metric("Forecast", mostrar_valor('Forecast Firma'))
 col5.metric("Stopper", mostrar_valor('Stopper'))
 
-#GRÁFICA
-st.subheader("📈 Distribución por Status")
-if 'Estatus' in df_filtrado.columns:
+# --- MODIFICACIÓN DE LA VISUALIZACIÓN DE GRÁFICA ---
+st.divider()
+st.subheader("📈 Resumen Ejecutivo por Status")
+
+if 'Estatus' in df_filtrado.columns and not df_filtrado.empty:
+    # Preparar datos
     status_counts = df_filtrado.groupby('Estatus').agg({"Sitio": lambda x: list(x), "Estatus": "count"}).rename(columns={"Estatus": "Cantidad"}).reset_index()
     status_counts['Estatus Limpio'] = status_counts['Estatus'].str.replace(r'^\d+\.\-\s*', '', regex=True)
     status_counts['Sitios'] = status_counts['Sitio'].apply(lambda x: '<br>'.join(x))
-    fig_donut = px.pie(
-        status_counts,
-        names='Estatus Limpio',
-        values='Cantidad',
-        hole=0.6,
+    status_counts = status_counts.sort_values('Cantidad', ascending=False)
+
+    # Tarjetas
+    num_cols = 4 # Puedes ajustar el número de columnas
+    cols = st.columns(num_cols)
+    for index, row in status_counts.iterrows():
+        with cols[index % num_cols]:
+            st.metric(label=row['Estatus Limpio'], value=row['Cantidad'])
+
+    st.divider()
+    st.subheader("📊 Detalle Gráfico por Status")
+
+    #Visualización horizontal
+    status_counts_sorted_for_chart = status_counts.sort_values('Cantidad', ascending=True)
+
+    fig_bar = px.bar(
+        status_counts_sorted_for_chart,
+        x='Cantidad',
+        y='Estatus Limpio',
+        orientation='h',
+        text='Cantidad',
         custom_data=['Sitios'],
-        color_discrete_sequence=px.colors.sequential.Purples_r
+        title='Distribución de Sitios por Status'
     )
-    fig_donut.update_traces(
-        textinfo='percent+label',
-        hovertemplate='<b>%{label}</b><br>Cantidad: %{value}<br>%{customdata[0]}<extra></extra>',
-        marker=dict(line=dict(color='#FFFFFF', width=2))
+    fig_bar.update_traces(
+        textposition='inside',
+        marker_color='#6A0DAD', # Un color púrpura profesional
+        hovertemplate='<b>%{y}</b><br>Cantidad: %{x}<br><br><b>Sitios:</b><br>%{customdata[0]}<extra></extra>'
     )
-    fig_donut.update_layout(showlegend=True, height=500)
-    st.plotly_chart(fig_donut, use_container_width=True)
+    fig_bar.update_layout(
+        yaxis_title=None,
+        xaxis_title="Cantidad de Sitios",
+        showlegend=False,
+        height=400 + len(status_counts) * 20 # Altura dinámica según la cantidad de status
+    )
+    st.plotly_chart(fig_bar, use_container_width=True)
+
 else:
-    st.info("No hay datos de estatus para graficar.")
+    st.info("No hay datos de estatus para mostrar.")
 
 #INFO
 st.subheader("🗂️ Información del Sitio")
@@ -90,8 +115,11 @@ st.dataframe(df_filtrado[columnas_existentes], use_container_width=True)
 #OBS
 st.subheader("📝 Comentarios")
 with st.expander("Ver comentarios por sitio"):
-    for _, row in df_filtrado[['Nombre Sitio', 'Observaciones']].dropna().iterrows():
-        st.markdown(f"**{row['Nombre Sitio']}**: {row['Observaciones']}")
+    if not df_filtrado[['Nombre Sitio', 'Observaciones']].dropna().empty:
+        for _, row in df_filtrado[['Nombre Sitio', 'Observaciones']].dropna().iterrows():
+            st.markdown(f"**{row['Nombre Sitio']}**: {row['Observaciones']}")
+    else:
+        st.info("No hay comentarios para los filtros seleccionados.")
 
 #MAPS
 st.subheader("🌐 Georeferencia")
@@ -111,3 +139,4 @@ if not mapa_df.empty:
     st.plotly_chart(fig_mapa, use_container_width=True, config={"scrollZoom": True})
 else:
     st.info("No hay coordenadas disponibles para mostrar en el mapa.")
+```
