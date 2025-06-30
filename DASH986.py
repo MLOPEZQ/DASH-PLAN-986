@@ -158,7 +158,7 @@ else:
 
 # --- INICIO DE LA NUEVA SECCIÓN DE FORECAST ---
 st.divider()
-st.subheader("🗓️ Forecast de Firma (Semanas)")
+st.subheader("🗓️ Forecast de Firma")
 
 if 'Forecast Firma' in df_gestion_activa.columns:
     # 1. Preparar los datos del forecast
