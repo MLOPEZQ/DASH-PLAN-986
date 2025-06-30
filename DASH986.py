@@ -54,24 +54,34 @@ if df_filtrado.empty:
     st.warning("⚠️ No se encontraron datos para los filtros seleccionados. Por favor, ajuste su selección.")
     st.stop()
 
-# --- INICIO DE LA LÓGICA DE INTERACTIVIDAD ---
-
-# 1. Inicializar el estado de la sesión si no existe
 if 'selected_status' not in st.session_state:
     st.session_state.selected_status = None
 
-# 2. Función para establecer el estado seleccionado al hacer clic en un botón
 def set_selected_status(status):
     st.session_state.selected_status = status
 
-# --- FIN DE LA LÓGICA DE INTERACTIVIDAD ---
-
-#MÉTRICAS
+# --- INICIO DE LA SECCIÓN DE MÉTRICAS MODIFICADA ---
 st.subheader("📊 SEGUIMIENTO")
-col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("Total de Sitios", len(df_filtrado))
-col3.metric("Forecast", df_filtrado['Forecast Firma'].notna().sum())
-col5.metric("Stopper", df_filtrado['Stopper'].notna().sum())
+
+# Calcular las métricas clave primero
+total_sitios_filtrados = len(df_filtrado)
+cantidad_eliminado = df_filtrado[df_filtrado['Estatus Limpio'] == 'Eliminado'].shape[0]
+cantidad_standby = df_filtrado[df_filtrado['Estatus Limpio'] == 'Standby'].shape[0]
+total_gestion_activa = total_sitios_filtrados - (cantidad_eliminado + cantidad_standby)
+
+# Usar columnas para centrar las dos métricas principales
+l_spacer, col_total, col_activa, r_spacer = st.columns([1, 2, 2, 1])
+
+with col_total:
+    st.metric("Total de Sitios", total_sitios_filtrados)
+
+with col_activa:
+    st.metric(
+        label="⚙️ Sitios en Gestión Activa", 
+        value=total_gestion_activa,
+        help=f"Total Sitios ({total_sitios_filtrados}) - Eliminados ({cantidad_eliminado}) - Standby ({cantidad_standby})"
+    )
+# --- FIN DE LA SECCIÓN DE MÉTRICAS MODIFICADA ---
 
 # TARJETAS
 st.divider()
@@ -96,55 +106,31 @@ if 'Estatus' in df_filtrado.columns:
             with st.container(border=True):
                 icon = status_icons.get(row['Estatus Limpio'], '📊')
                 st.metric(label=f"{icon} {row['Estatus Limpio']}", value=row['Cantidad'])
-                # 3. Añadir un botón a cada tarjeta para activar la vista de detalle
                 st.button("Ver Detalle", key=f"btn_{row['Estatus Limpio']}", on_click=set_selected_status, args=(row['Estatus Limpio'],), use_container_width=True)
 
-    # --- INICIO DE LA SECCIÓN DE VISUALIZACIÓN DE LA TABLA DE DETALLE ---
-    # 4. Comprobar si se ha seleccionado un estado y mostrar la tabla filtrada
     if st.session_state.selected_status:
         st.divider()
-        
-        # Crear un subheader con un botón para limpiar la selección
         col_header, col_button = st.columns([4, 1])
         with col_header:
             st.subheader(f"🔎 Detalle para: {st.session_state.selected_status}")
         with col_button:
             st.button("Ocultar Detalle", on_click=set_selected_status, args=(None,), use_container_width=True)
 
-        # Filtrar el dataframe por el estado seleccionado
         detalle_df = df_filtrado[df_filtrado['Estatus Limpio'] == st.session_state.selected_status]
-        
-        # Definir y mostrar la tabla de detalles
         columnas_info = ['AB+ALt', 'Nombre Sitio', 'Comuna', 'Región', 'Proyecto', 'Complementario', 'Lat', 'Long', 'Tipo de Sitio', 'Renta']
         columnas_existentes = [col for col in columnas_info if col in detalle_df.columns]
         st.dataframe(detalle_df[columnas_existentes], use_container_width=True)
-    # --- FIN DE LA SECCIÓN DE VISUALIZACIÓN DE LA TABLA DE DETALLE ---
-
-    # Métrica de Gestión Activa
-    st.divider()
-    cantidad_eliminado = status_counts.loc[status_counts['Estatus Limpio'] == 'Eliminado', 'Cantidad'].sum()
-    cantidad_standby = status_counts.loc[status_counts['Estatus Limpio'] == 'Standby', 'Cantidad'].sum()
-    total_gestion_activa = len(df_filtrado) - (cantidad_eliminado + cantidad_standby)
-    
-    col_izq, col_centro, col_der = st.columns([1, 2, 1])
-    with col_centro:
-        with st.container(border=True):
-            st.metric(
-                label="⚙️ Sitios en Gestión Activa", 
-                value=total_gestion_activa,
-                help=f"Total Sitios ({len(df_filtrado)}) - Eliminados ({cantidad_eliminado}) - Standby ({cantidad_standby})"
-            )
 
     # Gráfico de barras
     st.divider()
     st.subheader("📊 Detalle Gráfico")
     
     sitios_por_status = df_filtrado.groupby('Estatus')['Sitio'].apply(lambda x: '<br>'.join(x)).reset_index(name='Sitios')
-    status_counts = pd.merge(status_counts, sitios_por_status, on='Estatus')
+    status_counts_grafico = pd.merge(status_counts, sitios_por_status, on='Estatus')
 
-    fig_bar = px.bar(status_counts, x='Cantidad', y='Estatus Limpio', orientation='h', text='Cantidad',
+    fig_bar = px.bar(status_counts_grafico, x='Cantidad', y='Estatus Limpio', orientation='h', text='Cantidad',
                      custom_data=['Sitios'], color='Cantidad', color_continuous_scale=px.colors.sequential.Purples_r)
-    fig_bar.update_layout(yaxis={'categoryorder':'array', 'categoryarray': status_counts.sort_values('Orden')['Estatus Limpio'].tolist()[::-1]},
+    fig_bar.update_layout(yaxis={'categoryorder':'array', 'categoryarray': status_counts_grafico.sort_values('Orden')['Estatus Limpio'].tolist()[::-1]},
                           yaxis_title=None, xaxis_title="Cantidad de Sitios", showlegend=False,
                           coloraxis_showscale=False, height=400 + len(status_counts) * 20)
     fig_bar.update_traces(textposition='inside', hovertemplate='<b>%{y}</b><br>Cantidad: %{x}<br><br><b>Sitios:</b><br>%{customdata[0]}<extra></extra>')
@@ -153,7 +139,7 @@ if 'Estatus' in df_filtrado.columns:
 else:
     st.info("No hay datos de estatus para mostrar.")
 
-#INFO (Esta tabla general se mantiene como pediste)
+#INFO
 st.divider()
 st.subheader("🗂️ Información de Todos los Sitios (Filtro Actual)")
 columnas_info_general = ['AB+ALt', 'Nombre Sitio', 'Comuna', 'Región', 'Proyecto', 'Complementario', 'Lat', 'Long', 'Tipo de Sitio', 'Renta']
