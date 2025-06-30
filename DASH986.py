@@ -69,7 +69,7 @@ cantidad_eliminado = df_filtrado[df_filtrado['Estatus Limpio'] == 'Eliminado'].s
 cantidad_standby = df_filtrado[df_filtrado['Estatus Limpio'] == 'Standby'].shape[0]
 total_gestion_activa = total_sitios_filtrados - (cantidad_eliminado + cantidad_standby)
 
-# Usar columnas para centrar las dos métricas principales
+# Centrar las dos métricas principales
 l_spacer, col_total, col_activa, r_spacer = st.columns([1, 2, 2, 1])
 
 with col_total:
@@ -77,15 +77,14 @@ with col_total:
 
 with col_activa:
     st.metric(
-        label="⚙️ Sitios en Gestión Activa", 
+        label="Sitios en Gestión Activa", 
         value=total_gestion_activa,
         help=f"Total Sitios ({total_sitios_filtrados}) - Eliminados ({cantidad_eliminado}) - Standby ({cantidad_standby})"
     )
-# --- FIN DE LA SECCIÓN DE MÉTRICAS MODIFICADA ---
 
 # TARJETAS
 st.divider()
-st.subheader("📈 Resumen ESTATUS (Haz clic en 'Ver Detalle')")
+st.subheader("📈 Resumen ESTATUS")
 
 if 'Estatus' in df_filtrado.columns:
     status_counts = df_filtrado.groupby(['Estatus', 'Estatus Limpio']).agg(Cantidad=("Sitio", "count")).reset_index()
@@ -112,7 +111,7 @@ if 'Estatus' in df_filtrado.columns:
         st.divider()
         col_header, col_button = st.columns([4, 1])
         with col_header:
-            st.subheader(f"🔎 Detalle para: {st.session_state.selected_status}")
+            st.subheader(f"🔎 INFO SITIOS: {st.session_state.selected_status}")
         with col_button:
             st.button("Ocultar Detalle", on_click=set_selected_status, args=(None,), use_container_width=True)
 
