@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 
 st.set_page_config(page_title="Dashboard PLAN 986 (Sitios Complementarios)", layout="wide")
-st.image("9 años.jpg", width=None)
+st.image("10 años.jpg", width=None)
 st.markdown("""
     <div style='text-align: center;'>
         <h1 style='margin-top: 0;'>📍 Dashboard PLAN 986 (Sitios Complementarios)</h1>
