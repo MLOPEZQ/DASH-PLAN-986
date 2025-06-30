@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 
 st.set_page_config(page_title="Dashboard PLAN 986 (Sitios Complementarios)", layout="wide")
-# st.image("9 años.jpg", width=None) # Comentado si no tienes la imagen
+st.image("9 años.jpg", width=None)
 st.markdown("""
     <div style='text-align: center;'>
         <h1 style='margin-top: 0;'>📍 Dashboard PLAN 986 (Sitios Complementarios)</h1>
@@ -15,10 +15,8 @@ st.markdown("""
 
 uploaded_file = st.file_uploader("Carga tu archivo Excel PLAN986.xlsx", type=["xlsx"])
 if uploaded_file is not None:
-    # Aseguramos que Estatus se lea como texto para evitar problemas de tipo
     df = pd.read_excel(uploaded_file, engine='openpyxl', dtype={'Estatus': str})
     df.columns = df.columns.str.strip()
-    # Eliminar filas donde el Estatus es nulo ANTES de cualquier procesamiento
     df.dropna(subset=['Estatus'], inplace=True)
     df['Complementario'] = df['Complementario'].astype(str).str.strip().str.lower()
     df['Proyecto'] = df['Proyecto'].astype(str).str.strip().str.lower()
@@ -28,11 +26,9 @@ else:
     st.warning("Por favor, sube el archivo Excel para continuar.")
     st.stop()
 
-# Filtros principales de la aplicación
 df = df[(df['Proyecto'] == 'plan 986') & (df['Complementario'] == 'si')]
 df['Sitio'] = df['AB+ALt'].astype(str) + " - " + df['Nombre Sitio'].astype(str)
 
-# Filtros de la barra lateral
 st.sidebar.header("Filtros")
 
 gestores = df['Gestor'].dropna().unique().tolist()
@@ -50,7 +46,6 @@ if sitio_sel != "Todos":
 if df_filtrado.empty:
     st.warning("⚠️ No se encontraron datos para los filtros seleccionados. Por favor, ajuste su selección.")
     st.stop()
-
 
 #MÉTRICAS
 st.subheader("📊 SEGUIMIENTO")
@@ -75,11 +70,8 @@ st.subheader("📈 Resumen ESTATUS")
 if 'Estatus' in df_filtrado.columns:
     status_counts = df_filtrado.groupby('Estatus').agg({"Sitio": "count"}).rename(columns={"Sitio": "Cantidad"}).reset_index()
     
-    # --- CORRECCIÓN CLAVE: Filtrar estados mal formateados ---
-    # Mantenemos solo las filas donde el 'Estatus' comienza con uno o más dígitos seguidos de un punto.
     status_counts = status_counts[status_counts['Estatus'].str.match(r'^\d+\.')].copy()
     
-    # Ahora que estamos seguros que todos los estatus son válidos, procedemos con normalidad.
     status_counts['Orden'] = status_counts['Estatus'].str.extract(r'(\d+)').astype(int)
     status_counts = status_counts.sort_values('Orden', ascending=True).reset_index(drop=True)
     status_counts['Estatus Limpio'] = status_counts['Estatus'].str.replace(r'^\d+\.\-\s*', '', regex=True)
@@ -98,11 +90,35 @@ if 'Estatus' in df_filtrado.columns:
             with st.container(border=True):
                 icon = status_icons.get(row['Estatus Limpio'], '📊')
                 st.metric(label=f"{icon} {row['Estatus Limpio']}", value=row['Cantidad'])
+    
+    # --- INICIO DE LA NUEVA VISUALIZACIÓN ---
+    st.divider()
+
+    # Calcular la métrica
+    cantidad_eliminado = 0
+    if 'Eliminado' in status_counts['Estatus Limpio'].values:
+        cantidad_eliminado = status_counts.loc[status_counts['Estatus Limpio'] == 'Eliminado', 'Cantidad'].iloc[0]
+        
+    cantidad_standby = 0
+    if 'Standby' in status_counts['Estatus Limpio'].values:
+        cantidad_standby = status_counts.loc[status_counts['Estatus Limpio'] == 'Standby', 'Cantidad'].iloc[0]
+
+    total_gestion_activa = len(df_filtrado) - (cantidad_eliminado + cantidad_standby)
+
+    # Mostrar la métrica centrada y en grande
+    col_izq, col_centro, col_der = st.columns([1, 2, 1])
+    with col_centro:
+        with st.container(border=True):
+            st.metric(
+                label="⚙️ Sitios en Gestión Activa", 
+                value=total_gestion_activa,
+                help=f"Total Sitios ({len(df_filtrado)}) - Eliminados ({cantidad_eliminado}) - Standby ({cantidad_standby})"
+            )
+    # --- FIN DE LA NUEVA VISUALIZACIÓN ---
 
     st.divider()
     st.subheader("📊 Detalle Gráfico")
     
-    # Para el hover, necesitamos agregar la lista de sitios de nuevo
     sitios_por_status = df_filtrado.groupby('Estatus')['Sitio'].apply(lambda x: '<br>'.join(x)).reset_index(name='Sitios')
     status_counts = pd.merge(status_counts, sitios_por_status, on='Estatus')
 
