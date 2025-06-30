@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 
 st.set_page_config(page_title="Dashboard PLAN 986 (Sitios Complementarios)", layout="wide")
-# st.image("10 Años.jpg", width=None) # Comentado si no tienes la imagen
+st.image("10 Años.jpg", width=None)
 st.markdown("""
     <div style='text-align: center;'>
         <h1 style='margin-top: 0;'>📍 Dashboard PLAN 986 (Sitios Complementarios)</h1>
@@ -114,26 +114,53 @@ if 'Estatus' in df_filtrado.columns:
             st.button("Ocultar Detalle", on_click=set_selected_status, args=(None,), use_container_width=True)
 
         detalle_df = df_filtrado[df_filtrado['Estatus Limpio'] == st.session_state.selected_status]
-        
-        # --- MODIFICACIÓN 1: Columnas para la tabla de detalle ---
         columnas_info = ['AB+ALt', 'Nombre Sitio', 'Comuna', 'Región', 'Proyecto', 'Complementario', 'Lat', 'Long', 'Stopper']
         columnas_existentes = [col for col in columnas_info if col in detalle_df.columns]
         st.dataframe(detalle_df[columnas_existentes], use_container_width=True)
 
-    # Gráfico de barras
+    # --- INICIO DE LA SECCIÓN DE GRÁFICO MODIFICADA ---
     st.divider()
-    st.subheader("📊 Detalle Gráfico")
-    
-    sitios_por_status = df_filtrado.groupby('Estatus')['Sitio'].apply(lambda x: '<br>'.join(x)).reset_index(name='Sitios')
-    status_counts_grafico = pd.merge(status_counts, sitios_por_status, on='Estatus')
+    st.subheader("📊 Detalle por Stopper")
 
-    fig_bar = px.bar(status_counts_grafico, x='Cantidad', y='Estatus Limpio', orientation='h', text='Cantidad',
-                     custom_data=['Sitios'], color='Cantidad', color_continuous_scale=px.colors.sequential.Purples_r)
-    fig_bar.update_layout(yaxis={'categoryorder':'array', 'categoryarray': status_counts_grafico.sort_values('Orden')['Estatus Limpio'].tolist()[::-1]},
-                          yaxis_title=None, xaxis_title="Cantidad de Sitios", showlegend=False,
-                          coloraxis_showscale=False, height=400 + len(status_counts) * 20)
-    fig_bar.update_traces(textposition='inside', hovertemplate='<b>%{y}</b><br>Cantidad: %{x}<br><br><b>Sitios:</b><br>%{customdata[0]}<extra></extra>')
-    st.plotly_chart(fig_bar, use_container_width=True)
+    # Preparar datos para el gráfico de Stoppers
+    if 'Stopper' in df_filtrado.columns:
+        stopper_df = df_filtrado.copy()
+        # Reemplazar valores nulos en 'Stopper' para agruparlos
+        stopper_df['Stopper'] = stopper_df['Stopper'].fillna("Sin Stopper")
+        
+        # Agrupar por Stopper para contar sitios y obtener la lista de nombres para el hover
+        stopper_counts = stopper_df.groupby('Stopper').agg(
+            Cantidad=('Sitio', 'count'),
+            Sitios=('Sitio', lambda x: '<br>'.join(x))
+        ).reset_index()
+
+        # Crear el gráfico de barras
+        fig_stopper_bar = px.bar(
+            stopper_counts, 
+            x='Cantidad', 
+            y='Stopper', 
+            orientation='h', 
+            text='Cantidad',
+            custom_data=['Sitios'], 
+            color='Cantidad', 
+            color_continuous_scale=px.colors.sequential.Reds_r # Usamos una escala de rojos para indicar alerta
+        )
+        fig_stopper_bar.update_layout(
+            yaxis={'categoryorder':'total ascending'}, # Ordena las barras de mayor a menor
+            yaxis_title=None, 
+            xaxis_title="Cantidad de Sitios", 
+            showlegend=False,
+            coloraxis_showscale=False, 
+            height=300 + len(stopper_counts) * 30 # Altura dinámica
+        )
+        fig_stopper_bar.update_traces(
+            textposition='inside', 
+            hovertemplate='<b>%{y}</b><br>Cantidad de Sitios: %{x}<br><br><b>Sitios Afectados:</b><br>%{customdata[0]}<extra></extra>'
+        )
+        st.plotly_chart(fig_stopper_bar, use_container_width=True)
+    else:
+        st.info("La columna 'Stopper' no se encontró en los datos.")
+    # --- FIN DE LA SECCIÓN DE GRÁFICO MODIFICADA ---
 
 else:
     st.info("No hay datos de estatus para mostrar.")
@@ -142,7 +169,6 @@ else:
 st.divider()
 st.subheader("🗂️ Información de Todos los Sitios (Filtro Actual)")
 
-# --- MODIFICACIÓN 2: Columnas para la tabla general ---
 columnas_info_general = ['AB+ALt', 'Nombre Sitio', 'Comuna', 'Región', 'Proyecto', 'Complementario', 'Lat', 'Long', 'Stopper']
 columnas_existentes_general = [col for col in columnas_info_general if col in df_filtrado.columns]
 st.dataframe(df_filtrado[columnas_existentes_general], use_container_width=True)
