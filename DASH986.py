@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 
 st.set_page_config(page_title="Dashboard PLAN 986 (Sitios Complementarios)", layout="wide")
-st.image("10 Años.jpg", width=None)
+# st.image("10 Años.jpg", width=None) # Comentado si no tienes la imagen
 st.markdown("""
     <div style='text-align: center;'>
         <h1 style='margin-top: 0;'>📍 Dashboard PLAN 986 (Sitios Complementarios)</h1>
@@ -60,16 +60,14 @@ if 'selected_status' not in st.session_state:
 def set_selected_status(status):
     st.session_state.selected_status = status
 
-# --- INICIO DE LA SECCIÓN DE MÉTRICAS MODIFICADA ---
+# SECCIÓN DE MÉTRICAS
 st.subheader("📊 SEGUIMIENTO")
 
-# Calcular las métricas clave primero
 total_sitios_filtrados = len(df_filtrado)
 cantidad_eliminado = df_filtrado[df_filtrado['Estatus Limpio'] == 'Eliminado'].shape[0]
 cantidad_standby = df_filtrado[df_filtrado['Estatus Limpio'] == 'Standby'].shape[0]
 total_gestion_activa = total_sitios_filtrados - (cantidad_eliminado + cantidad_standby)
 
-# Centrar las dos métricas principales
 l_spacer, col_total, col_activa, r_spacer = st.columns([1, 2, 2, 1])
 
 with col_total:
@@ -116,7 +114,9 @@ if 'Estatus' in df_filtrado.columns:
             st.button("Ocultar Detalle", on_click=set_selected_status, args=(None,), use_container_width=True)
 
         detalle_df = df_filtrado[df_filtrado['Estatus Limpio'] == st.session_state.selected_status]
-        columnas_info = ['AB+ALt', 'Nombre Sitio', 'Comuna', 'Región', 'Proyecto', 'Complementario', 'Lat', 'Long', 'Tipo de Sitio', 'Renta']
+        
+        # --- MODIFICACIÓN 1: Columnas para la tabla de detalle ---
+        columnas_info = ['AB+ALt', 'Nombre Sitio', 'Comuna', 'Región', 'Proyecto', 'Complementario', 'Lat', 'Long', 'Stopper']
         columnas_existentes = [col for col in columnas_info if col in detalle_df.columns]
         st.dataframe(detalle_df[columnas_existentes], use_container_width=True)
 
@@ -141,7 +141,9 @@ else:
 #INFO
 st.divider()
 st.subheader("🗂️ Información de Todos los Sitios (Filtro Actual)")
-columnas_info_general = ['AB+ALt', 'Nombre Sitio', 'Comuna', 'Región', 'Proyecto', 'Complementario', 'Lat', 'Long', 'Tipo de Sitio', 'Renta']
+
+# --- MODIFICACIÓN 2: Columnas para la tabla general ---
+columnas_info_general = ['AB+ALt', 'Nombre Sitio', 'Comuna', 'Región', 'Proyecto', 'Complementario', 'Lat', 'Long', 'Stopper']
 columnas_existentes_general = [col for col in columnas_info_general if col in df_filtrado.columns]
 st.dataframe(df_filtrado[columnas_existentes_general], use_container_width=True)
 
