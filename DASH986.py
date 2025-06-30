@@ -120,44 +120,49 @@ if 'Estatus' in df_filtrado.columns:
 
     # --- INICIO DE LA SECCIÓN DE GRÁFICO MODIFICADA ---
     st.divider()
-    st.subheader("📊 Detalle por Stopper")
+    st.subheader("📊 Detalle por Stopper (Sitios en Gestión Activa)")
 
-    # Preparar datos para el gráfico de Stoppers
     if 'Stopper' in df_filtrado.columns:
-        stopper_df = df_filtrado.copy()
-        # Reemplazar valores nulos en 'Stopper' para agruparlos
-        stopper_df['Stopper'] = stopper_df['Stopper'].fillna("Sin Stopper")
+        # 1. Filtrar el DataFrame para incluir solo sitios en gestión activa
+        estatus_excluir = ['Eliminado', 'Standby']
+        df_gestion_activa = df_filtrado[~df_filtrado['Estatus Limpio'].isin(estatus_excluir)]
         
-        # Agrupar por Stopper para contar sitios y obtener la lista de nombres para el hover
-        stopper_counts = stopper_df.groupby('Stopper').agg(
-            Cantidad=('Sitio', 'count'),
-            Sitios=('Sitio', lambda x: '<br>'.join(x))
-        ).reset_index()
+        # Continuar solo si hay sitios en gestión activa
+        if not df_gestion_activa.empty:
+            stopper_df = df_gestion_activa.copy()
+            stopper_df['Stopper'] = stopper_df['Stopper'].fillna("Sin Stopper")
+            
+            stopper_counts = stopper_df.groupby('Stopper').agg(
+                Cantidad=('Sitio', 'count'),
+                Sitios=('Sitio', lambda x: '<br>'.join(x))
+            ).reset_index()
 
-        # Crear el gráfico de barras
-        fig_stopper_bar = px.bar(
-            stopper_counts, 
-            x='Cantidad', 
-            y='Stopper', 
-            orientation='h', 
-            text='Cantidad',
-            custom_data=['Sitios'], 
-            color='Cantidad', 
-            color_continuous_scale=px.colors.sequential.Reds_r # Usamos una escala de rojos para indicar alerta
-        )
-        fig_stopper_bar.update_layout(
-            yaxis={'categoryorder':'total ascending'}, # Ordena las barras de mayor a menor
-            yaxis_title=None, 
-            xaxis_title="Cantidad de Sitios", 
-            showlegend=False,
-            coloraxis_showscale=False, 
-            height=300 + len(stopper_counts) * 30 # Altura dinámica
-        )
-        fig_stopper_bar.update_traces(
-            textposition='inside', 
-            hovertemplate='<b>%{y}</b><br>Cantidad de Sitios: %{x}<br><br><b>Sitios Afectados:</b><br>%{customdata[0]}<extra></extra>'
-        )
-        st.plotly_chart(fig_stopper_bar, use_container_width=True)
+            # Crear el gráfico de barras con la nueva gama de colores
+            fig_stopper_bar = px.bar(
+                stopper_counts, 
+                x='Cantidad', 
+                y='Stopper', 
+                orientation='h', 
+                text='Cantidad',
+                custom_data=['Sitios'], 
+                color='Cantidad', 
+                color_continuous_scale=px.colors.sequential.Purples_r # 2. Cambiado a gama de morados
+            )
+            fig_stopper_bar.update_layout(
+                yaxis={'categoryorder':'total ascending'},
+                yaxis_title=None, 
+                xaxis_title="Cantidad de Sitios", 
+                showlegend=False,
+                coloraxis_showscale=False, 
+                height=300 + len(stopper_counts) * 30
+            )
+            fig_stopper_bar.update_traces(
+                textposition='inside', 
+                hovertemplate='<b>%{y}</b><br>Cantidad de Sitios: %{x}<br><br><b>Sitios Afectados:</b><br>%{customdata[0]}<extra></extra>'
+            )
+            st.plotly_chart(fig_stopper_bar, use_container_width=True)
+        else:
+            st.info("No hay sitios en gestión activa para analizar stoppers.")
     else:
         st.info("La columna 'Stopper' no se encontró en los datos.")
     # --- FIN DE LA SECCIÓN DE GRÁFICO MODIFICADA ---
