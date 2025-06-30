@@ -16,6 +16,10 @@ st.markdown("""
     text-align: center;
     box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
     transition: 0.3s;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 150px; /* Altura fija para consistencia */
 }
 /* Estilo para el valor de la métrica (número grande) */
 .metric-value {
@@ -26,13 +30,11 @@ st.markdown("""
 /* Estilo para la etiqueta de la métrica (texto pequeño) */
 .metric-label {
     font-size: 1.1em;
-    color: #f0f2f6; /* Un blanco un poco más suave */
+    color: #f0f2f6;
 }
-/* Estilo para la explicación (help text) */
-.metric-help {
-    font-size: 0.8em;
-    color: #e0e0e0;
-    margin-top: 5px;
+/* Estilo para el espacio en blanco que asegura la misma altura */
+.metric-spacer {
+    min-height: 20px; /* Altura similar a la del texto de ayuda eliminado */
 }
 /* Estilo para los botones dentro de las tarjetas */
 .stButton>button {
@@ -127,11 +129,9 @@ if 'selected_status' not in st.session_state:
 # SECCIÓN DE MÉTRICAS CON NUEVO DISEÑO
 st.subheader("📊 SEGUIMIENTO")
 total_sitios_filtrados = len(df_filtrado)
-cantidad_eliminado = df_filtrado[df_filtrado['Estatus Limpio'] == 'Eliminado'].shape[0]
-cantidad_standby = df_filtrado[df_filtrado['Estatus Limpio'] == 'Standby'].shape[0]
-total_gestion_activa = total_sitios_filtrados - (cantidad_eliminado + cantidad_standby)
 estatus_excluir = ['Eliminado', 'Standby']
 df_gestion_activa = df_filtrado[~df_filtrado['Estatus Limpio'].isin(estatus_excluir)]
+total_gestion_activa = len(df_gestion_activa)
 
 l_spacer, col_total, col_activa, r_spacer = st.columns([1, 2, 2, 1])
 
@@ -141,6 +141,7 @@ with col_total:
         <div class="metric-card">
             <div class="metric-label">Total de Sitios</div>
             <div class="metric-value">{total_sitios_filtrados}</div>
+            <div class="metric-spacer"> </div>
         </div>
     """, unsafe_allow_html=True)
     st.button("Ver Detalle de Todos", on_click=set_selected_status, args=('ALL',), use_container_width=True, key="btn_all_sites")
@@ -151,7 +152,7 @@ with col_activa:
         <div class="metric-card">
             <div class="metric-label">Sitios en Gestión Activa</div>
             <div class="metric-value">{total_gestion_activa}</div>
-            <div class="metric-help">Total ({total_sitios_filtrados}) - Eliminados ({cantidad_eliminado}) - Standby ({cantidad_standby})</div>
+            <div class="metric-spacer"> </div>
         </div>
     """, unsafe_allow_html=True)
     st.button("Ver Detalle Activos", on_click=set_selected_status, args=('ACTIVE',), use_container_width=True, key="btn_active_sites")
@@ -177,12 +178,12 @@ if 'Estatus' in df_filtrado.columns:
     # LÓGICA DE VISUALIZACIÓN DE DETALLES
     if st.session_state.selected_status:
         if st.session_state.selected_status == 'ALL':
-            display_detail_view(title="🗂️ Información Total de Sitios", dataframe=df_filtrado)
+            display_detail_view(title="🗂️ Detalle: Total de Sitios", dataframe=df_filtrado)
         elif st.session_state.selected_status == 'ACTIVE':
-            display_detail_view(title="⚙️ Información Sitios en Gestión Activa", dataframe=df_gestion_activa)
+            display_detail_view(title="⚙️ Detalle: Sitios en Gestión Activa", dataframe=df_gestion_activa)
         else: # Detalle de un estatus específico
             detalle_df = df_filtrado[df_filtrado['Estatus Limpio'] == st.session_state.selected_status]
-            display_detail_view(title=f"🔎 INFO SITIOS: {st.session_state.selected_status}", dataframe=detalle_df)
+            display_detail_view(title=f"🔎 Detalle: Estatus {st.session_state.selected_status}", dataframe=detalle_df)
 
     # GRÁFICO DE STOPPERS
     st.divider()
