@@ -15,7 +15,8 @@ st.markdown("""
 
 uploaded_file = st.file_uploader("Carga tu archivo Excel PLAN986.xlsx", type=["xlsx"])
 if uploaded_file is not None:
-    df = pd.read_excel(uploaded_file, engine='openpyxl')
+    # --- CORRECCIÓN 1: Asegurarse de que Estatus es de tipo string para el procesamiento posterior ---
+    df = pd.read_excel(uploaded_file, engine='openpyxl', dtype={'Estatus': str})
     df.columns = df.columns.str.strip()
     df['Complementario'] = df['Complementario'].astype(str).str.strip().str.lower()
     df['Proyecto'] = df['Proyecto'].astype(str).str.strip().str.lower()
@@ -42,10 +43,15 @@ sitio_sel = st.sidebar.selectbox("Seleccionar Sitio", ["Todos"] + sorted(sitios_
 if sitio_sel != "Todos":
     df_filtrado = df_filtrado[df_filtrado['Sitio'] == sitio_sel]
 
+# Si no queda ningún dato, muestra una advertencia y detiene la ejecución.
+if df_filtrado.empty:
+    st.warning("⚠️ No se encontraron datos para los filtros seleccionados. Por favor, ajuste su selección.")
+    st.stop()
+
 #MÉTRICAS
 st.subheader("📊 SEGUIMIENTO")
 col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("Total de Sitios", len(df) if gestor_sel == "Todos" else df[df['Gestor'] == gestor_sel].shape[0])
+col1.metric("Total de Sitios", len(df_filtrado)) # Corregido para mostrar el total filtrado
 
 def mostrar_valor(col):
     if sitio_sel != "Todos":
@@ -62,16 +68,15 @@ col5.metric("Stopper", mostrar_valor('Stopper'))
 st.divider()
 st.subheader("📈 Resumen ESTATUS")
 
-if 'Estatus' in df_filtrado.columns and not df_filtrado.empty:
-    # Preparar datos
+if 'Estatus' in df_filtrado.columns:
     status_counts = df_filtrado.groupby('Estatus').agg({"Sitio": lambda x: list(x), "Estatus": "count"}).rename(columns={"Estatus": "Cantidad"}).reset_index()
+    
+    status_counts['Orden'] = status_counts['Estatus'].str.extract(r'(\d+)').astype(int)
+    status_counts = status_counts.sort_values('Orden', ascending=True).reset_index(drop=True)
+    
     status_counts['Estatus Limpio'] = status_counts['Estatus'].str.replace(r'^\d+\.\-\s*', '', regex=True)
     status_counts['Sitios'] = status_counts['Sitio'].apply(lambda x: '<br>'.join(x))
-    
-    # AJUSTE
-    status_counts = status_counts.sort_values('Estatus', ascending=True).reset_index(drop=True)
 
-    # PCTO
     status_icons = {
         "Eliminado": "🗑️", "Procuración": "🔍", "Carpeta Completa - Pend ING": "📁",
         "En borrador": "📝", "En búsqueda": "🕵️‍♂️", "Firmado": "✍️",
@@ -79,7 +84,6 @@ if 'Estatus' in df_filtrado.columns and not df_filtrado.empty:
         "TSS Realizada": "✅"
     }
 
-    # Visualización TARJETAS
     num_cols = 5
     cols = st.columns(num_cols)
     for i, row in status_counts.iterrows():
@@ -101,14 +105,17 @@ if 'Estatus' in df_filtrado.columns and not df_filtrado.empty:
         color='Cantidad',
         color_continuous_scale=px.colors.sequential.Purples_r
     )
+    
+    
     fig_bar.update_layout(
-        yaxis={'categoryorder':'total ascending'},
+        yaxis={'categoryorder':'array', 'categoryarray': status_counts['Estatus Limpio'].tolist()[::-1]},
         yaxis_title=None,
         xaxis_title="Cantidad de Sitios",
         showlegend=False,
         coloraxis_showscale=False,
         height=400 + len(status_counts) * 20
     )
+    
     fig_bar.update_traces(
         textposition='inside',
         hovertemplate='<b>%{y}</b><br>Cantidad: %{x}<br><br><b>Sitios:</b><br>%{customdata[0]}<extra></extra>'
@@ -122,6 +129,7 @@ else:
 st.subheader("🗂️ Información del Sitio")
 columnas_info = ['AB+ALt', 'Nombre Sitio', 'Comuna', 'Región', 'Proyecto', 'Complementario', 'Lat', 'Long', 'Tipo de Sitio', 'Renta']
 columnas_existentes = [col for col in columnas_info if col in df_filtrado.columns]
+# Esta sección ahora es segura gracias a la comprobación de df_filtrado.empty de arriba.
 st.dataframe(df_filtrado[columnas_existentes], use_container_width=True)
 
 #OBS
