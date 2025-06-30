@@ -84,13 +84,13 @@ def display_detail_view(title, dataframe):
     with col_header:
         st.subheader(title)
     with col_button:
-        st.button("Ocultar Detalle", on_click=set_selected_status, args=(None,), use_container_width=True, key="hide_detail_btn")
+        st.button("Ocultar Detalle", on_click=set_selected_status, args=(None,), use_container_width=True, key=f"hide_detail_btn_{title}")
     
     columnas_info = ['AB+ALt', 'Nombre Sitio', 'Comuna', 'Región', 'Proyecto', 'Complementario', 'Lat', 'Long', 'Stopper']
     columnas_existentes = [col for col in columnas_info if col in dataframe.columns]
     st.dataframe(dataframe[columnas_existentes], use_container_width=True)
 
-    st.subheader("📝 Comentarios Asociados")
+    st.subheader("📝 Comentarios")
     with st.expander("Ver/Ocultar comentarios para esta selección"):
         comments_df = dataframe[['Nombre Sitio', 'Observaciones']].dropna()
         if not comments_df.empty:
@@ -135,30 +135,24 @@ total_gestion_activa = len(df_gestion_activa)
 
 l_spacer, col_total, col_activa, r_spacer = st.columns([1, 2, 2, 1])
 
-# Tarjeta para "Total de Sitios"
 with col_total:
-    st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-label">Total de Sitios</div>
-            <div class="metric-value">{total_sitios_filtrados}</div>
-            <div class="metric-spacer"> </div>
-        </div>
-    """, unsafe_allow_html=True)
-    st.button("Ver Detalle de Todos", on_click=set_selected_status, args=('ALL',), use_container_width=True, key="btn_all_sites")
+    st.markdown(f"""<div class="metric-card"><div class="metric-label">Total de Sitios</div><div class="metric-value">{total_sitios_filtrados}</div><div class="metric-spacer"> </div></div>""", unsafe_allow_html=True)
+    st.button("Ver Detalle", on_click=set_selected_status, args=('ALL',), use_container_width=True, key="btn_all_sites")
 
-# Tarjeta para "Sitios en Gestión Activa"
 with col_activa:
-    st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-label">Sitios en Gestión Activa</div>
-            <div class="metric-value">{total_gestion_activa}</div>
-            <div class="metric-spacer"> </div>
-        </div>
-    """, unsafe_allow_html=True)
-    st.button("Ver Detalle Activos", on_click=set_selected_status, args=('ACTIVE',), use_container_width=True, key="btn_active_sites")
+    st.markdown(f"""<div class="metric-card"><div class="metric-label">Sitios en Gestión Activa</div><div class="metric-value">{total_gestion_activa}</div><div class="metric-spacer"> </div></div>""", unsafe_allow_html=True)
+    st.button("Ver Detalle", on_click=set_selected_status, args=('ACTIVE',), use_container_width=True, key="btn_active_sites")
+
+# --- MODIFICACIÓN 1: LÓGICA DE VISUALIZACIÓN PARA MÉTRICAS PRINCIPALES ---
+# Este bloque se ejecuta solo si se hizo clic en los botones de las tarjetas moradas.
+if st.session_state.selected_status in ['ALL', 'ACTIVE']:
+    if st.session_state.selected_status == 'ALL':
+        display_detail_view(title="🗂️ Detalle: Total de Sitios", dataframe=df_filtrado)
+    elif st.session_state.selected_status == 'ACTIVE':
+        display_detail_view(title="⚙️ Detalle: Sitios en Gestión Activa", dataframe=df_gestion_activa)
 
 # TARJETAS DE ESTATUS
-st.divider()
+# Se elimina el st.divider() para un diseño más limpio
 st.subheader("📈 Resumen ESTATUS")
 if 'Estatus' in df_filtrado.columns:
     status_counts = df_filtrado.groupby(['Estatus', 'Estatus Limpio']).agg(Cantidad=("Sitio", "count")).reset_index()
@@ -175,15 +169,11 @@ if 'Estatus' in df_filtrado.columns:
                 st.metric(label=f"{icon} {row['Estatus Limpio']}", value=row['Cantidad'])
                 st.button("Ver Detalle", key=f"btn_{row['Estatus Limpio']}", on_click=set_selected_status, args=(row['Estatus Limpio'],), use_container_width=True)
 
-    # LÓGICA DE VISUALIZACIÓN DE DETALLES
-    if st.session_state.selected_status:
-        if st.session_state.selected_status == 'ALL':
-            display_detail_view(title="🗂️ Detalle: Total de Sitios", dataframe=df_filtrado)
-        elif st.session_state.selected_status == 'ACTIVE':
-            display_detail_view(title="⚙️ Detalle: Sitios en Gestión Activa", dataframe=df_gestion_activa)
-        else: # Detalle de un estatus específico
-            detalle_df = df_filtrado[df_filtrado['Estatus Limpio'] == st.session_state.selected_status]
-            display_detail_view(title=f"🔎 Detalle: Estatus {st.session_state.selected_status}", dataframe=detalle_df)
+    # --- MODIFICACIÓN 2: LÓGICA DE VISUALIZACIÓN PARA TARJETAS DE ESTATUS ---
+    # Este bloque se ejecuta solo si se hizo clic en los botones de las tarjetas de estatus.
+    if st.session_state.selected_status and st.session_state.selected_status not in ['ALL', 'ACTIVE']:
+        detalle_df = df_filtrado[df_filtrado['Estatus Limpio'] == st.session_state.selected_status]
+        display_detail_view(title=f"🔎 Detalle: Estatus {st.session_state.selected_status}", dataframe=detalle_df)
 
     # GRÁFICO DE STOPPERS
     st.divider()
