@@ -139,4 +139,3 @@ if not mapa_df.empty:
     st.plotly_chart(fig_mapa, use_container_width=True, config={"scrollZoom": True})
 else:
     st.info("No hay coordenadas disponibles para mostrar en el mapa.")
-```
