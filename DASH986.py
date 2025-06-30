@@ -156,28 +156,27 @@ if 'Stopper' in df_filtrado.columns:
 else:
     st.info("La columna 'Stopper' no se encontró en los datos.")
 
-# --- INICIO DE LA NUEVA SECCIÓN DE FORECAST ---
+# --- INICIO DE LA SECCIÓN DE FORECAST MODIFICADA ---
 st.divider()
 st.subheader("🗓️ Forecast de Firma")
 
 if 'Forecast Firma' in df_gestion_activa.columns:
-    # 1. Preparar los datos del forecast
-    forecast_df = df_gestion_activa.dropna(subset=['Forecast Firma']).copy()
-    # Extraer el número de la semana y convertir a entero, manejando errores
+    # 1. Crear la fuente de datos para el forecast: sitios activos que NO están 'Firmado'
+    forecast_source_df = df_gestion_activa[df_gestion_activa['Estatus Limpio'] != 'Firmado']
+    
+    # 2. Preparar los datos del forecast desde la nueva fuente
+    forecast_df = forecast_source_df.dropna(subset=['Forecast Firma']).copy()
     forecast_df['WeekNum'] = pd.to_numeric(forecast_df['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
     forecast_df = forecast_df.dropna(subset=['WeekNum'])
     forecast_df['WeekNum'] = forecast_df['WeekNum'].astype(int)
 
     if not forecast_df.empty:
-        # 2. Obtener la semana actual
         current_week = datetime.now().isocalendar().week
         st.info(f"Semana Actual: W{current_week}")
 
-        # 3. Agrupar sitios por semana de forecast
         forecast_groups = forecast_df.sort_values('WeekNum').groupby('WeekNum')['Sitio'].apply(list).reset_index()
 
-        # 4. Mostrar los forecasts en tarjetas
-        num_cols = 4  # Tarjetas por fila
+        num_cols = 4
         cols = st.columns(num_cols)
         col_index = 0
         for _, row in forecast_groups.iterrows():
@@ -185,7 +184,6 @@ if 'Forecast Firma' in df_gestion_activa.columns:
             sites = row['Sitio']
             with cols[col_index % num_cols]:
                 with st.container(border=True):
-                    # Asignar color y título según si está atrasado, actual o futuro
                     if week < current_week:
                         st.error(f"🔴 W{week} (Atrasado)")
                     elif week == current_week:
@@ -193,15 +191,14 @@ if 'Forecast Firma' in df_gestion_activa.columns:
                     else:
                         st.success(f"🗓️ W{week}")
                     
-                    # Listar los sitios
                     for site in sites:
                         st.markdown(f"- {site}")
                 col_index += 1
     else:
-        st.info("No hay sitios con forecast definido en la selección activa.")
+        st.info("No hay sitios con forecast definido en la selección activa (excluyendo los ya firmados).")
 else:
     st.info("La columna 'Forecast Firma' no se encontró en los datos.")
-# --- FIN DE LA NUEVA SECCIÓN DE FORECAST ---
+# --- FIN DE LA SECCIÓN DE FORECAST MODIFICADA ---
 
 
 # MAPS
