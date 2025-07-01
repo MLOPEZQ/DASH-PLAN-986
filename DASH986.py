@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
+from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Dashboard PLAN 986 (Sitios Complementarios)", layout="wide")
 
@@ -44,8 +44,9 @@ def load_data(uploaded_file):
     df.dropna(subset=['Estatus'], inplace=True)
     df['Complementario'] = df['Complementario'].astype(str).str.strip().str.lower()
     df['Proyecto'] = df['Proyecto'].astype(str).str.strip().str.lower()
-    if 'Fecha Entrega a Construcción' in df.columns:
-        df['Fecha Entrega a Construcción'] = pd.to_datetime(df['Fecha Entrega a Construcción'], errors='coerce')
+    for col in ['Fecha Entrega a Construcción', 'Fecha TSS']:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors='coerce')
     df = df[df['Estatus'].str.match(r'^\d+\.')].copy()
     df['Estatus Limpio'] = df['Estatus'].str.replace(r'^\d+\.\-\s*', '', regex=True)
     return df
@@ -75,12 +76,18 @@ def display_detail_view(title, dataframe):
 uploaded_file = st.file_uploader("Carga tu archivo Excel PLAN986.xlsx", type=["xlsx"])
 if uploaded_file is not None:
     df_original = load_data(uploaded_file)
+    uploaded_file.seek(0)
+    df_tss_raw = pd.read_excel(uploaded_file, engine='openpyxl')
+    df_tss_raw.columns = df_tss_raw.columns.str.strip()
 else:
     st.warning("Por favor, sube el archivo Excel para continuar.")
     st.stop()
 
 df = df_original[(df_original['Proyecto'] == 'plan 986') & (df_original['Complementario'] == 'si')]
 df['Sitio'] = df['AB+ALt'].astype(str) + " - " + df['Nombre Sitio'].astype(str)
+df = pd.merge(df, df_tss_raw[['AB+ALt', 'Fecha TSS']], on='AB+ALt', how='left', suffixes=('', '_raw'))
+df['Fecha TSS'] = df['Fecha TSS_raw']
+df.drop(columns=['Fecha TSS_raw'], inplace=True)
 
 st.sidebar.header("Filtros")
 gestores = df['Gestor'].dropna().unique().tolist()
@@ -106,7 +113,6 @@ df_gestion_activa = df_filtrado[~df_filtrado['Estatus Limpio'].isin(estatus_excl
 total_gestion_activa = len(df_gestion_activa)
 
 l_spacer, col_total, col_activa, r_spacer = st.columns([1, 2, 2, 1])
-
 with col_total:
     st.markdown(f"""<div class="metric-card"><div class="metric-label">Total de Sitios</div><div class="metric-value">{total_sitios_filtrados}</div><div class="metric-spacer"> </div></div>""", unsafe_allow_html=True)
     st.button("Ver Detalle de Todos", on_click=set_selected_status, args=('ALL',), use_container_width=True, key="btn_all_sites")
@@ -156,15 +162,10 @@ if 'Stopper' in df_filtrado.columns:
 else:
     st.info("La columna 'Stopper' no se encontró en los datos.")
 
-# --- INICIO DE LA SECCIÓN DE FORECAST MODIFICADA ---
 st.divider()
 st.subheader("🗓️ Forecast de Firma")
-
 if 'Forecast Firma' in df_gestion_activa.columns:
-    # 1. Crear la fuente de datos para el forecast: sitios activos que NO están 'Firmado'
     forecast_source_df = df_gestion_activa[df_gestion_activa['Estatus Limpio'] != 'Firmado']
-    
-    # 2. Preparar los datos del forecast desde la nueva fuente
     forecast_df = forecast_source_df.dropna(subset=['Forecast Firma']).copy()
     forecast_df['WeekNum'] = pd.to_numeric(forecast_df['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
     forecast_df = forecast_df.dropna(subset=['WeekNum'])
@@ -173,9 +174,7 @@ if 'Forecast Firma' in df_gestion_activa.columns:
     if not forecast_df.empty:
         current_week = datetime.now().isocalendar().week
         st.info(f"Semana Actual: W{current_week}")
-
         forecast_groups = forecast_df.sort_values('WeekNum').groupby('WeekNum')['Sitio'].apply(list).reset_index()
-
         num_cols = 4
         cols = st.columns(num_cols)
         col_index = 0
@@ -198,8 +197,68 @@ if 'Forecast Firma' in df_gestion_activa.columns:
         st.info("No hay sitios con forecast definido en la selección activa (excluyendo los ya firmados).")
 else:
     st.info("La columna 'Forecast Firma' no se encontró en los datos.")
-# --- FIN DE LA SECCIÓN DE FORECAST MODIFICADA ---
 
+# VISUALIZACIÓN DE CRONOGRAMA TSS
+st.divider()
+st.subheader("📅 Cronograma de TSS")
+
+def parse_tss_date(value):
+    if pd.isna(value):
+        return None
+    if isinstance(value, (datetime, pd.Timestamp)):
+        return value
+    if isinstance(value, str):
+        value_lower = value.lower().strip()
+        if value_lower.startswith('w'):
+            try:
+                week_num = int(value_lower.replace('w', ''))
+                current_year = datetime.now().year
+                return datetime.fromisocalendar(current_year, week_num, 1)
+            except (ValueError, TypeError):
+                return None
+    return pd.to_datetime(value, errors='coerce')
+
+if 'Fecha TSS' in df_gestion_activa.columns:
+    tss_df = df_gestion_activa.dropna(subset=['Fecha TSS']).copy()
+    tss_df['SortableDate'] = tss_df['Fecha TSS'].apply(parse_tss_date)
+    tss_df = tss_df.dropna(subset=['SortableDate']).sort_values('SortableDate')
+
+    expander_title = f"Ver Cronograma de TSS ({len(tss_df)} sitios con fecha)"
+    with st.expander(expander_title):
+        if not tss_df.empty:
+            # CAMBIO: Definimos las fechas clave para la nueva lógica
+            today = datetime.now().date()
+            current_isocal = datetime.now().isocalendar()
+            start_of_week = datetime.fromisocalendar(current_isocal.year, current_isocal.week, 1).date()
+            end_of_week = datetime.fromisocalendar(current_isocal.year, current_isocal.week, 7).date()
+
+            for _, row in tss_df.iterrows():
+                site_name = row['Sitio']
+                tss_date = row['SortableDate'].date()
+                original_format = row['Fecha TSS']
+                
+                if isinstance(original_format, (datetime, pd.Timestamp)):
+                    display_date = original_format.strftime('%d-%m-%Y')
+                else:
+                    display_date = str(original_format).strip()
+
+                # CAMBIO: Nueva lógica de estado basada en tu feedback
+                if tss_date < start_of_week:
+                    status_icon = "✅"
+                    status_text = "(Realizada)"
+                elif start_of_week <= tss_date <= end_of_week:
+                    status_icon = "🎯"
+                    status_text = "(Semana Actual)"
+                else: # Futuro
+                    status_icon = "🗓️"
+                    status_text = "(En Programación)"
+
+                st.markdown(f"{status_icon} **{site_name}**: {display_date} {status_text}")
+        else:
+            st.info("No hay sitios en gestión activa con una fecha de TSS programada.")
+else:
+    st.info("La columna 'Fecha TSS' no se encontró en los datos.")
+# --- FIN: VISUALIZACIÓN DE CRONOGRAMA TSS (VERSIÓN CORREGIDA) ---
 
 # MAPS
 st.divider()
