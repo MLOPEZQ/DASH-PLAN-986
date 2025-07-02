@@ -163,9 +163,9 @@ if 'Stopper' in df_filtrado.columns:
 else:
     st.info("La columna 'Stopper' no se encontró en los datos.")
 
-# --- INICIO: NUEVA VISUALIZACIÓN DE DESPLAZAMIENTO DE FORECAST (EJEMPLO 3) ---
+# FORECAST
 st.divider()
-st.subheader("📊 Desplazamiento del Forecast de Firma")
+st.subheader("📊 Forecast de Firma")
 
 if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_gestion_activa.columns:
     
