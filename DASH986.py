@@ -1,12 +1,12 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px # <-- ESTA LÍNEA FALTABA Y CAUSABA EL ERROR
+import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 
 st.set_page_config(page_title="Dashboard PLAN 986 (Sitios Complementarios)", layout="wide")
 
-# --- INICIO: CSS PERSONALIZADO PARA LAS TARJETAS DE MÉTRICA ---
+# CSS PERSONALIZADO
 st.markdown("""
 <style>
 .metric-card {
@@ -190,11 +190,13 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
     
     forecast_comp_df.sort_values(by=['WeekNum_Movil', 'Sitio'], ascending=[True, True], inplace=True)
 
+    # ULT MODIFICACIÓN
     if forecast_comp_df.empty:
         st.info("No hay sitios con 'Forecast Firma' y 'Forecast Móvil' válidos para comparar.")
     else:
         fig = go.Figure()
 
+        # Se itera sobre cada fila para añadir los elementos con etiquetas de texto
         for i, row in forecast_comp_df.iterrows():
             y_pos = row['Sitio']
             x_orig = row['WeekNum_Original']
@@ -202,24 +204,40 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
             color = row['Color']
             status = row['Status']
             
+            # 1. LÍNEA PUNTEADA
             if x_orig != x_movil:
                 fig.add_shape(type='line', x0=x_orig, y0=y_pos, x1=x_movil, y1=y_pos,
                               line=dict(color='rgba(128, 128, 128, 0.5)', width=1.5, dash='dot'))
             
-            fig.add_trace(go.Scatter(x=[x_orig], y=[y_pos], mode='markers',
-                                     marker=dict(color='grey', size=8, symbol='circle'),
-                                     name='Original',
-                                     hoverinfo='text',
-                                     text=f"<b>{row['Sitio']}</b><br>F. Original: W{x_orig}"))
+            # 2. PTO GRIS
+            fig.add_trace(go.Scatter(
+                x=[x_orig], y=[y_pos],
+                mode='markers+text',
+                text=[str(x_orig)],
+                textposition='middle left',
+                textfont=dict(color='grey', size=10),
+                marker=dict(color='grey', size=8, symbol='circle'),
+                name='Original',
+                hoverinfo='text',
+                hovertext=f"<b>{row['Sitio']}</b><br>F. Original: W{x_orig}"
+            ))
 
+            # 3. F MÓVIL
             variacion_str = f"+{row['Variacion']}" if row['Variacion'] > 0 else str(row['Variacion'])
-            hover_text = f"<b>{row['Sitio']}</b><br>F. Móvil: W{x_movil}<br>F. Original: W{x_orig}<br>Variación: {variacion_str} semanas"
-            fig.add_trace(go.Scatter(x=[x_movil], y=[y_pos], mode='markers',
-                                     marker=dict(color=color, size=12, symbol='circle',
-                                                 line=dict(width=1, color='DarkSlateGrey')),
-                                     name=status,
-                                     hoverinfo='text',
-                                     text=hover_text))
+            hover_text_movil = f"<b>{row['Sitio']}</b><br>F. Móvil: W{x_movil}<br>F. Original: W{x_orig}<br>Variación: {variacion_str} semanas"
+            
+            fig.add_trace(go.Scatter(
+                x=[x_movil], y=[y_pos],
+                mode='markers+text',
+                text=[str(x_movil)],
+                textposition='middle right',
+                textfont=dict(color='DarkSlateGrey', size=12),
+                marker=dict(color=color, size=12, symbol='circle',
+                                  line=dict(width=1, color='DarkSlateGrey')),
+                name=status,
+                hoverinfo='text',
+                hovertext=hover_text_movil
+            ))
 
         fig.update_layout(
             yaxis_title=None,
@@ -230,7 +248,7 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
                 categoryorder='array', 
                 categoryarray=forecast_comp_df['Sitio'].tolist()
             ),
-            margin=dict(l=20, r=20, t=40, b=40),
+            margin=dict(l=250, r=40, t=40, b=40),
             plot_bgcolor='rgba(0,0,0,0)',
         )
         
@@ -241,12 +259,10 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
                       annotation_font_color="purple")
 
         st.plotly_chart(fig, use_container_width=True)
+    # END
 
 else:
     st.info("Para ver la comparación, asegúrese de que el archivo Excel contenga las columnas 'Forecast Firma' y 'Forecast Móvil'.")
-
-# --- FIN: NUEVA VISUALIZACIÓN DE DESPLAZAMIENTO DE FORECAST ---
-
 
 # VISUALIZACIÓN DE CRONOGRAMA TSS
 st.divider()
