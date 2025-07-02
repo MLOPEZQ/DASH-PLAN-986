@@ -6,7 +6,7 @@ from datetime import datetime
 
 st.set_page_config(page_title="Dashboard PLAN 986 (Sitios Complementarios)", layout="wide")
 
-# CSS PERSONALIZADO
+# --- INICIO: CSS PERSONALIZADO PARA LAS TARJETAS DE MÉTRICA ---
 st.markdown("""
 <style>
 .metric-card {
@@ -55,6 +55,7 @@ def load_data(uploaded_file):
 def set_selected_status(status):
     st.session_state.selected_status = status
 
+# --- INICIO DE MODIFICACIÓN 1: Añadir 'Renta' a la vista de detalle ---
 def display_detail_view(title, dataframe):
     st.divider()
     col_header, col_button = st.columns([4, 1])
@@ -62,7 +63,10 @@ def display_detail_view(title, dataframe):
         st.subheader(title)
     with col_button:
         st.button("Ocultar Detalle", on_click=set_selected_status, args=(None,), use_container_width=True, key=f"hide_detail_btn_{title}")
-    columnas_info = ['AB+ALt', 'Nombre Sitio', 'Comuna', 'Región', 'Proyecto', 'Complementario', 'Lat', 'Long', 'Stopper']
+    
+    # Se agrega 'Renta' a la lista de columnas a mostrar
+    columnas_info = ['AB+ALt', 'Nombre Sitio', 'Comuna', 'Región', 'Proyecto', 'Complementario', 'Renta', 'Lat', 'Long', 'Stopper']
+    
     columnas_existentes = [col for col in columnas_info if col in dataframe.columns]
     st.dataframe(dataframe[columnas_existentes], use_container_width=True)
     st.subheader("📝 Comentarios Asociados")
@@ -73,6 +77,7 @@ def display_detail_view(title, dataframe):
                 st.markdown(f"**{row['Nombre Sitio']}**: {row['Observaciones']}")
         else:
             st.info("No hay comentarios para los sitios en esta selección.")
+# --- FIN DE MODIFICACIÓN 1 ---
 
 uploaded_file = st.file_uploader("Carga tu archivo Excel PLAN986.xlsx", type=["xlsx"])
 if uploaded_file is not None:
@@ -190,66 +195,91 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
     
     forecast_comp_df.sort_values(by=['WeekNum_Movil', 'Sitio'], ascending=[True, True], inplace=True)
 
-    # ULT MODIFICACIÓN
+    # --- INICIO DE MODIFICACIÓN 2: Lógica del gráfico de Forecast (leyenda y sin duplicados) ---
     if forecast_comp_df.empty:
         st.info("No hay sitios con 'Forecast Firma' y 'Forecast Móvil' válidos para comparar.")
     else:
         fig = go.Figure()
 
-        # Se itera sobre cada fila para añadir los elementos con etiquetas de texto
+        # Añadir trazas vacías para crear la leyenda
+        legend_items = {'Adelantado': '#1e8e3e', 'En Fecha': '#1a73e8', 'Retrasado': '#d93025'}
+        for name, color in legend_items.items():
+            fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers',
+                                     marker=dict(size=10, color=color),
+                                     legendgroup=name,
+                                     showlegend=True,
+                                     name=name))
+
         for i, row in forecast_comp_df.iterrows():
             y_pos = row['Sitio']
             x_orig = row['WeekNum_Original']
             x_movil = row['WeekNum_Movil']
             color = row['Color']
-            status = row['Status']
             
-            # 1. LÍNEA PUNTEADA
-            if x_orig != x_movil:
+            # Caso 1: Forecast Original y Móvil son IGUALES
+            if row['Variacion'] == 0:
+                fig.add_trace(go.Scatter(
+                    x=[x_movil], y=[y_pos],
+                    mode='markers+text',
+                    text=[str(x_movil)],
+                    textposition='middle right',
+                    textfont=dict(color='DarkSlateGrey', size=12),
+                    marker=dict(color=color, size=12, symbol='circle', line=dict(width=1, color='DarkSlateGrey')),
+                    hoverinfo='text',
+                    hovertext=f"<b>{row['Sitio']}</b><br>Forecast: W{x_movil}<br><b>(En Fecha)</b>",
+                    showlegend=False
+                ))
+            # Caso 2: Forecast Original y Móvil son DIFERENTES
+            else:
                 fig.add_shape(type='line', x0=x_orig, y0=y_pos, x1=x_movil, y1=y_pos,
                               line=dict(color='rgba(128, 128, 128, 0.5)', width=1.5, dash='dot'))
-            
-            # 2. PTO GRIS
-            fig.add_trace(go.Scatter(
-                x=[x_orig], y=[y_pos],
-                mode='markers+text',
-                text=[str(x_orig)],
-                textposition='middle left',
-                textfont=dict(color='grey', size=10),
-                marker=dict(color='grey', size=8, symbol='circle'),
-                name='Original',
-                hoverinfo='text',
-                hovertext=f"<b>{row['Sitio']}</b><br>F. Original: W{x_orig}"
-            ))
+                
+                fig.add_trace(go.Scatter(
+                    x=[x_orig], y=[y_pos],
+                    mode='markers+text',
+                    text=[str(x_orig)],
+                    textposition='middle left',
+                    textfont=dict(color='grey', size=10),
+                    marker=dict(color='grey', size=8, symbol='circle'),
+                    hoverinfo='text',
+                    hovertext=f"<b>{row['Sitio']}</b><br>F. Original: W{x_orig}",
+                    showlegend=False
+                ))
 
-            # 3. F MÓVIL
-            variacion_str = f"+{row['Variacion']}" if row['Variacion'] > 0 else str(row['Variacion'])
-            hover_text_movil = f"<b>{row['Sitio']}</b><br>F. Móvil: W{x_movil}<br>F. Original: W{x_orig}<br>Variación: {variacion_str} semanas"
-            
-            fig.add_trace(go.Scatter(
-                x=[x_movil], y=[y_pos],
-                mode='markers+text',
-                text=[str(x_movil)],
-                textposition='middle right',
-                textfont=dict(color='DarkSlateGrey', size=12),
-                marker=dict(color=color, size=12, symbol='circle',
-                                  line=dict(width=1, color='DarkSlateGrey')),
-                name=status,
-                hoverinfo='text',
-                hovertext=hover_text_movil
-            ))
+                variacion_str = f"+{row['Variacion']}" if row['Variacion'] > 0 else str(row['Variacion'])
+                hover_text_movil = f"<b>{row['Sitio']}</b><br>F. Móvil: W{x_movil}<br>F. Original: W{x_orig}<br>Variación: {variacion_str} semanas"
+                
+                fig.add_trace(go.Scatter(
+                    x=[x_movil], y=[y_pos],
+                    mode='markers+text',
+                    text=[str(x_movil)],
+                    textposition='middle right',
+                    textfont=dict(color='DarkSlateGrey', size=12),
+                    marker=dict(color=color, size=12, symbol='circle', line=dict(width=1, color='DarkSlateGrey')),
+                    hoverinfo='text',
+                    hovertext=hover_text_movil,
+                    showlegend=False
+                ))
 
         fig.update_layout(
             yaxis_title=None,
             xaxis_title="Número de Semana del Año",
-            showlegend=False,
             height=200 + len(forecast_comp_df) * 40,
             yaxis=dict(
                 categoryorder='array', 
                 categoryarray=forecast_comp_df['Sitio'].tolist()
             ),
-            margin=dict(l=250, r=40, t=40, b=40),
+            margin=dict(l=250, r=40, t=80, b=40), # Aumentado margen superior para leyenda
             plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1,
+                title_text=''
+            )
         )
         
         current_week = datetime.now().isocalendar().week
@@ -259,7 +289,7 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
                       annotation_font_color="purple")
 
         st.plotly_chart(fig, use_container_width=True)
-    # END
+    # --- FIN DE MODIFICACIÓN 2 ---
 
 else:
     st.info("Para ver la comparación, asegúrese de que el archivo Excel contenga las columnas 'Forecast Firma' y 'Forecast Móvil'.")
