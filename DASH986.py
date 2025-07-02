@@ -55,7 +55,6 @@ def load_data(uploaded_file):
 def set_selected_status(status):
     st.session_state.selected_status = status
 
-# --- INICIO DE MODIFICACIÓN 1: Añadir 'Renta' a la vista de detalle ---
 def display_detail_view(title, dataframe):
     st.divider()
     col_header, col_button = st.columns([4, 1])
@@ -77,7 +76,6 @@ def display_detail_view(title, dataframe):
                 st.markdown(f"**{row['Nombre Sitio']}**: {row['Observaciones']}")
         else:
             st.info("No hay comentarios para los sitios en esta selección.")
-# --- FIN DE MODIFICACIÓN 1 ---
 
 uploaded_file = st.file_uploader("Carga tu archivo Excel PLAN986.xlsx", type=["xlsx"])
 if uploaded_file is not None:
@@ -195,26 +193,23 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
     
     forecast_comp_df.sort_values(by=['WeekNum_Movil', 'Sitio'], ascending=[True, True], inplace=True)
 
-    # --- INICIO DE MODIFICACIÓN 2: Lógica del gráfico de Forecast (leyenda y sin duplicados) ---
+    # --- INICIO DEL BLOQUE MODIFICADO Y CORREGIDO ---
     if forecast_comp_df.empty:
         st.info("No hay sitios con 'Forecast Firma' y 'Forecast Móvil' válidos para comparar.")
     else:
         fig = go.Figure()
+        legend_added = set()
 
-        # Añadir trazas vacías para crear la leyenda
-        legend_items = {'Adelantado': '#1e8e3e', 'En Fecha': '#1a73e8', 'Retrasado': '#d93025'}
-        for name, color in legend_items.items():
-            fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers',
-                                     marker=dict(size=10, color=color),
-                                     legendgroup=name,
-                                     showlegend=True,
-                                     name=name))
-
-        for i, row in forecast_comp_df.iterrows():
+        for _, row in forecast_comp_df.iterrows():
             y_pos = row['Sitio']
             x_orig = row['WeekNum_Original']
             x_movil = row['WeekNum_Movil']
             color = row['Color']
+            status = row['Status']
+
+            show_legend = status not in legend_added
+            if show_legend:
+                legend_added.add(status)
             
             # Caso 1: Forecast Original y Móvil son IGUALES
             if row['Variacion'] == 0:
@@ -227,13 +222,17 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
                     marker=dict(color=color, size=12, symbol='circle', line=dict(width=1, color='DarkSlateGrey')),
                     hoverinfo='text',
                     hovertext=f"<b>{row['Sitio']}</b><br>Forecast: W{x_movil}<br><b>(En Fecha)</b>",
-                    showlegend=False
+                    name=status,
+                    legendgroup=status,
+                    showlegend=show_legend
                 ))
             # Caso 2: Forecast Original y Móvil son DIFERENTES
             else:
+                # Línea punteada
                 fig.add_shape(type='line', x0=x_orig, y0=y_pos, x1=x_movil, y1=y_pos,
                               line=dict(color='rgba(128, 128, 128, 0.5)', width=1.5, dash='dot'))
                 
+                # Punto Original (gris)
                 fig.add_trace(go.Scatter(
                     x=[x_orig], y=[y_pos],
                     mode='markers+text',
@@ -246,6 +245,7 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
                     showlegend=False
                 ))
 
+                # Punto Móvil (de color)
                 variacion_str = f"+{row['Variacion']}" if row['Variacion'] > 0 else str(row['Variacion'])
                 hover_text_movil = f"<b>{row['Sitio']}</b><br>F. Móvil: W{x_movil}<br>F. Original: W{x_orig}<br>Variación: {variacion_str} semanas"
                 
@@ -258,7 +258,9 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
                     marker=dict(color=color, size=12, symbol='circle', line=dict(width=1, color='DarkSlateGrey')),
                     hoverinfo='text',
                     hovertext=hover_text_movil,
-                    showlegend=False
+                    name=status,
+                    legendgroup=status,
+                    showlegend=show_legend
                 ))
 
         fig.update_layout(
@@ -266,12 +268,12 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
             xaxis_title="Número de Semana del Año",
             height=200 + len(forecast_comp_df) * 40,
             yaxis=dict(
+                type='category', # Aseguramos que el eje sea categórico
                 categoryorder='array', 
                 categoryarray=forecast_comp_df['Sitio'].tolist()
             ),
-            margin=dict(l=250, r=40, t=80, b=40), # Aumentado margen superior para leyenda
+            margin=dict(l=250, r=40, t=80, b=40),
             plot_bgcolor='rgba(0,0,0,0)',
-            showlegend=True,
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
@@ -289,7 +291,7 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
                       annotation_font_color="purple")
 
         st.plotly_chart(fig, use_container_width=True)
-    # --- FIN DE MODIFICACIÓN 2 ---
+    # --- FIN DEL BLOQUE MODIFICADO Y CORREGIDO ---
 
 else:
     st.info("Para ver la comparación, asegúrese de que el archivo Excel contenga las columnas 'Forecast Firma' y 'Forecast Móvil'.")
