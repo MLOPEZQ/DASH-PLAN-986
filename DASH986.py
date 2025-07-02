@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px # <-- ESTA LÍNEA FALTABA Y CAUSABA EL ERROR
 import plotly.graph_objects as go
 from datetime import datetime
 
@@ -39,7 +40,6 @@ st.markdown("""<div style='text-align: center;'><h1 style='margin-top: 0;'>📍 
 
 @st.cache_data
 def load_data(uploaded_file):
-    # Asegúrate de que la columna 'Forecast Móvil' se lea como texto para preservar 'W28' etc.
     df = pd.read_excel(uploaded_file, engine='openpyxl', dtype={'Estatus': str, 'Forecast Firma': str, 'Forecast Móvil': str})
     df.columns = df.columns.str.strip()
     df.dropna(subset=['Estatus'], inplace=True)
@@ -77,7 +77,6 @@ def display_detail_view(title, dataframe):
 uploaded_file = st.file_uploader("Carga tu archivo Excel PLAN986.xlsx", type=["xlsx"])
 if uploaded_file is not None:
     df_original = load_data(uploaded_file)
-    # Volvemos a leer el archivo crudo para la lógica de TSS
     uploaded_file.seek(0)
     df_tss_raw = pd.read_excel(uploaded_file, engine='openpyxl')
     df_tss_raw.columns = df_tss_raw.columns.str.strip()
@@ -168,24 +167,18 @@ else:
 st.divider()
 st.subheader("📊 Desplazamiento del Forecast de Firma")
 
-# Validamos que existan las columnas necesarias
 if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_gestion_activa.columns:
     
-    # 1. Preparamos el DataFrame para la comparación
     forecast_comp_df = df_gestion_activa.copy()
-    # Filtramos sitios que no están firmados y que tienen ambos forecasts
     forecast_comp_df = forecast_comp_df[forecast_comp_df['Estatus Limpio'] != 'Firmado']
     forecast_comp_df = forecast_comp_df.dropna(subset=['Forecast Firma', 'Forecast Móvil'])
 
-    # 2. Extraemos el número de semana de forma segura
     forecast_comp_df['WeekNum_Original'] = pd.to_numeric(forecast_comp_df['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
     forecast_comp_df['WeekNum_Movil'] = pd.to_numeric(forecast_comp_df['Forecast Móvil'].str.extract(r'(\d+)')[0], errors='coerce')
     
-    # Eliminamos filas donde la extracción falló
     forecast_comp_df.dropna(subset=['WeekNum_Original', 'WeekNum_Movil'], inplace=True)
     forecast_comp_df[['WeekNum_Original', 'WeekNum_Movil']] = forecast_comp_df[['WeekNum_Original', 'WeekNum_Movil']].astype(int)
 
-    # 3. Calculamos la variación y definimos el estado
     forecast_comp_df['Variacion'] = forecast_comp_df['WeekNum_Movil'] - forecast_comp_df['WeekNum_Original']
     
     def get_status_and_color(v):
@@ -195,13 +188,11 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
 
     forecast_comp_df[['Status', 'Color']] = forecast_comp_df['Variacion'].apply(get_status_and_color).apply(pd.Series)
     
-    # 4. Ordenamos para una mejor visualización en el gráfico
     forecast_comp_df.sort_values(by=['WeekNum_Movil', 'Sitio'], ascending=[True, True], inplace=True)
 
     if forecast_comp_df.empty:
         st.info("No hay sitios con 'Forecast Firma' y 'Forecast Móvil' válidos para comparar.")
     else:
-        # 5. Creamos el gráfico con Plotly Graph Objects para mayor control
         fig = go.Figure()
 
         for i, row in forecast_comp_df.iterrows():
@@ -211,19 +202,16 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
             color = row['Color']
             status = row['Status']
             
-            # Línea punteada que conecta los dos puntos
             if x_orig != x_movil:
                 fig.add_shape(type='line', x0=x_orig, y0=y_pos, x1=x_movil, y1=y_pos,
                               line=dict(color='rgba(128, 128, 128, 0.5)', width=1.5, dash='dot'))
             
-            # Punto del Forecast Original (siempre gris)
             fig.add_trace(go.Scatter(x=[x_orig], y=[y_pos], mode='markers',
                                      marker=dict(color='grey', size=8, symbol='circle'),
                                      name='Original',
                                      hoverinfo='text',
                                      text=f"<b>{row['Sitio']}</b><br>F. Original: W{x_orig}"))
 
-            # Punto del Forecast Móvil (con color de estado)
             variacion_str = f"+{row['Variacion']}" if row['Variacion'] > 0 else str(row['Variacion'])
             hover_text = f"<b>{row['Sitio']}</b><br>F. Móvil: W{x_movil}<br>F. Original: W{x_orig}<br>Variación: {variacion_str} semanas"
             fig.add_trace(go.Scatter(x=[x_movil], y=[y_pos], mode='markers',
@@ -233,14 +221,12 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
                                      hoverinfo='text',
                                      text=hover_text))
 
-        # 6. Configuramos el layout del gráfico
         fig.update_layout(
             yaxis_title=None,
             xaxis_title="Número de Semana del Año",
             showlegend=False,
-            height=200 + len(forecast_comp_df) * 40,  # Altura dinámica
+            height=200 + len(forecast_comp_df) * 40,
             yaxis=dict(
-                # Asegura que el orden de los sitios en el eje Y sea el que definimos
                 categoryorder='array', 
                 categoryarray=forecast_comp_df['Sitio'].tolist()
             ),
@@ -248,7 +234,6 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
             plot_bgcolor='rgba(0,0,0,0)',
         )
         
-        # Añadimos una línea vertical para la semana actual
         current_week = datetime.now().isocalendar().week
         fig.add_vline(x=current_week, line_width=2, line_dash="dash", line_color="purple",
                       annotation_text="Semana Actual", 
