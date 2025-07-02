@@ -185,7 +185,7 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
     forecast_comp_df['Variacion'] = forecast_comp_df['WeekNum_Movil'] - forecast_comp_df['WeekNum_Original']
     
     def get_status_and_color(v):
-        if v > 0: return 'Retrasado', '#d93025' # Rojo
+        if v > 0: return 'Reprogramado', '#d93025' # Rojo
         if v < 0: return 'Adelantado', '#1e8e3e' # Verde
         return 'En Fecha', '#1a73e8' # Azul
 
