@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-from datetime import datetime, timedelta
+import plotly.graph_objects as go
+from datetime import datetime
 
 st.set_page_config(page_title="Dashboard PLAN 986 (Sitios Complementarios)", layout="wide")
 
@@ -39,7 +39,8 @@ st.markdown("""<div style='text-align: center;'><h1 style='margin-top: 0;'>📍 
 
 @st.cache_data
 def load_data(uploaded_file):
-    df = pd.read_excel(uploaded_file, engine='openpyxl', dtype={'Estatus': str})
+    # Asegúrate de que la columna 'Forecast Móvil' se lea como texto para preservar 'W28' etc.
+    df = pd.read_excel(uploaded_file, engine='openpyxl', dtype={'Estatus': str, 'Forecast Firma': str, 'Forecast Móvil': str})
     df.columns = df.columns.str.strip()
     df.dropna(subset=['Estatus'], inplace=True)
     df['Complementario'] = df['Complementario'].astype(str).str.strip().str.lower()
@@ -76,6 +77,7 @@ def display_detail_view(title, dataframe):
 uploaded_file = st.file_uploader("Carga tu archivo Excel PLAN986.xlsx", type=["xlsx"])
 if uploaded_file is not None:
     df_original = load_data(uploaded_file)
+    # Volvemos a leer el archivo crudo para la lógica de TSS
     uploaded_file.seek(0)
     df_tss_raw = pd.read_excel(uploaded_file, engine='openpyxl')
     df_tss_raw.columns = df_tss_raw.columns.str.strip()
@@ -162,41 +164,104 @@ if 'Stopper' in df_filtrado.columns:
 else:
     st.info("La columna 'Stopper' no se encontró en los datos.")
 
+# --- INICIO: NUEVA VISUALIZACIÓN DE DESPLAZAMIENTO DE FORECAST (EJEMPLO 3) ---
 st.divider()
-st.subheader("🗓️ Forecast de Firma")
-if 'Forecast Firma' in df_gestion_activa.columns:
-    forecast_source_df = df_gestion_activa[df_gestion_activa['Estatus Limpio'] != 'Firmado']
-    forecast_df = forecast_source_df.dropna(subset=['Forecast Firma']).copy()
-    forecast_df['WeekNum'] = pd.to_numeric(forecast_df['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
-    forecast_df = forecast_df.dropna(subset=['WeekNum'])
-    forecast_df['WeekNum'] = forecast_df['WeekNum'].astype(int)
+st.subheader("📊 Desplazamiento del Forecast de Firma")
 
-    if not forecast_df.empty:
-        current_week = datetime.now().isocalendar().week
-        st.info(f"Semana Actual: W{current_week}")
-        forecast_groups = forecast_df.sort_values('WeekNum').groupby('WeekNum')['Sitio'].apply(list).reset_index()
-        num_cols = 4
-        cols = st.columns(num_cols)
-        col_index = 0
-        for _, row in forecast_groups.iterrows():
-            week = row['WeekNum']
-            sites = row['Sitio']
-            with cols[col_index % num_cols]:
-                with st.container(border=True):
-                    if week < current_week:
-                        st.error(f"🔴 W{week} (Atrasado)")
-                    elif week == current_week:
-                        st.warning(f"🎯 W{week} (Semana Actual)")
-                    else:
-                        st.success(f"🗓️ W{week}")
-                    
-                    for site in sites:
-                        st.markdown(f"- {site}")
-                col_index += 1
+# Validamos que existan las columnas necesarias
+if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_gestion_activa.columns:
+    
+    # 1. Preparamos el DataFrame para la comparación
+    forecast_comp_df = df_gestion_activa.copy()
+    # Filtramos sitios que no están firmados y que tienen ambos forecasts
+    forecast_comp_df = forecast_comp_df[forecast_comp_df['Estatus Limpio'] != 'Firmado']
+    forecast_comp_df = forecast_comp_df.dropna(subset=['Forecast Firma', 'Forecast Móvil'])
+
+    # 2. Extraemos el número de semana de forma segura
+    forecast_comp_df['WeekNum_Original'] = pd.to_numeric(forecast_comp_df['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
+    forecast_comp_df['WeekNum_Movil'] = pd.to_numeric(forecast_comp_df['Forecast Móvil'].str.extract(r'(\d+)')[0], errors='coerce')
+    
+    # Eliminamos filas donde la extracción falló
+    forecast_comp_df.dropna(subset=['WeekNum_Original', 'WeekNum_Movil'], inplace=True)
+    forecast_comp_df[['WeekNum_Original', 'WeekNum_Movil']] = forecast_comp_df[['WeekNum_Original', 'WeekNum_Movil']].astype(int)
+
+    # 3. Calculamos la variación y definimos el estado
+    forecast_comp_df['Variacion'] = forecast_comp_df['WeekNum_Movil'] - forecast_comp_df['WeekNum_Original']
+    
+    def get_status_and_color(v):
+        if v > 0: return 'Retrasado', '#d93025' # Rojo
+        if v < 0: return 'Adelantado', '#1e8e3e' # Verde
+        return 'En Fecha', '#1a73e8' # Azul
+
+    forecast_comp_df[['Status', 'Color']] = forecast_comp_df['Variacion'].apply(get_status_and_color).apply(pd.Series)
+    
+    # 4. Ordenamos para una mejor visualización en el gráfico
+    forecast_comp_df.sort_values(by=['WeekNum_Movil', 'Sitio'], ascending=[True, True], inplace=True)
+
+    if forecast_comp_df.empty:
+        st.info("No hay sitios con 'Forecast Firma' y 'Forecast Móvil' válidos para comparar.")
     else:
-        st.info("No hay sitios con forecast definido en la selección activa (excluyendo los ya firmados).")
+        # 5. Creamos el gráfico con Plotly Graph Objects para mayor control
+        fig = go.Figure()
+
+        for i, row in forecast_comp_df.iterrows():
+            y_pos = row['Sitio']
+            x_orig = row['WeekNum_Original']
+            x_movil = row['WeekNum_Movil']
+            color = row['Color']
+            status = row['Status']
+            
+            # Línea punteada que conecta los dos puntos
+            if x_orig != x_movil:
+                fig.add_shape(type='line', x0=x_orig, y0=y_pos, x1=x_movil, y1=y_pos,
+                              line=dict(color='rgba(128, 128, 128, 0.5)', width=1.5, dash='dot'))
+            
+            # Punto del Forecast Original (siempre gris)
+            fig.add_trace(go.Scatter(x=[x_orig], y=[y_pos], mode='markers',
+                                     marker=dict(color='grey', size=8, symbol='circle'),
+                                     name='Original',
+                                     hoverinfo='text',
+                                     text=f"<b>{row['Sitio']}</b><br>F. Original: W{x_orig}"))
+
+            # Punto del Forecast Móvil (con color de estado)
+            variacion_str = f"+{row['Variacion']}" if row['Variacion'] > 0 else str(row['Variacion'])
+            hover_text = f"<b>{row['Sitio']}</b><br>F. Móvil: W{x_movil}<br>F. Original: W{x_orig}<br>Variación: {variacion_str} semanas"
+            fig.add_trace(go.Scatter(x=[x_movil], y=[y_pos], mode='markers',
+                                     marker=dict(color=color, size=12, symbol='circle',
+                                                 line=dict(width=1, color='DarkSlateGrey')),
+                                     name=status,
+                                     hoverinfo='text',
+                                     text=hover_text))
+
+        # 6. Configuramos el layout del gráfico
+        fig.update_layout(
+            yaxis_title=None,
+            xaxis_title="Número de Semana del Año",
+            showlegend=False,
+            height=200 + len(forecast_comp_df) * 40,  # Altura dinámica
+            yaxis=dict(
+                # Asegura que el orden de los sitios en el eje Y sea el que definimos
+                categoryorder='array', 
+                categoryarray=forecast_comp_df['Sitio'].tolist()
+            ),
+            margin=dict(l=20, r=20, t=40, b=40),
+            plot_bgcolor='rgba(0,0,0,0)',
+        )
+        
+        # Añadimos una línea vertical para la semana actual
+        current_week = datetime.now().isocalendar().week
+        fig.add_vline(x=current_week, line_width=2, line_dash="dash", line_color="purple",
+                      annotation_text="Semana Actual", 
+                      annotation_position="top left",
+                      annotation_font_color="purple")
+
+        st.plotly_chart(fig, use_container_width=True)
+
 else:
-    st.info("La columna 'Forecast Firma' no se encontró en los datos.")
+    st.info("Para ver la comparación, asegúrese de que el archivo Excel contenga las columnas 'Forecast Firma' y 'Forecast Móvil'.")
+
+# --- FIN: NUEVA VISUALIZACIÓN DE DESPLAZAMIENTO DE FORECAST ---
+
 
 # VISUALIZACIÓN DE CRONOGRAMA TSS
 st.divider()
@@ -226,7 +291,6 @@ if 'Fecha TSS' in df_gestion_activa.columns:
     expander_title = f"Ver Cronograma de TSS ({len(tss_df)} sitios con fecha)"
     with st.expander(expander_title):
         if not tss_df.empty:
-            # CAMBIO: Definimos las fechas clave para la nueva lógica
             today = datetime.now().date()
             current_isocal = datetime.now().isocalendar()
             start_of_week = datetime.fromisocalendar(current_isocal.year, current_isocal.week, 1).date()
@@ -242,14 +306,13 @@ if 'Fecha TSS' in df_gestion_activa.columns:
                 else:
                     display_date = str(original_format).strip()
 
-                # CAMBIO: Nueva lógica de estado basada en tu feedback
                 if tss_date < start_of_week:
                     status_icon = "✅"
                     status_text = "(Realizada)"
                 elif start_of_week <= tss_date <= end_of_week:
                     status_icon = "🎯"
                     status_text = "(Semana Actual)"
-                else: # Futuro
+                else: 
                     status_icon = "🗓️"
                     status_text = "(En Programación)"
 
@@ -258,7 +321,6 @@ if 'Fecha TSS' in df_gestion_activa.columns:
             st.info("No hay sitios en gestión activa con una fecha de TSS programada.")
 else:
     st.info("La columna 'Fecha TSS' no se encontró en los datos.")
-# --- FIN: VISUALIZACIÓN DE CRONOGRAMA TSS (VERSIÓN CORREGIDA) ---
 
 # MAPS
 st.divider()
