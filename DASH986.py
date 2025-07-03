@@ -157,7 +157,11 @@ if 'Stopper' in df_filtrado.columns:
         stopper_df = df_gestion_activa.copy()
         stopper_df['Stopper'] = stopper_df['Stopper'].fillna("Sin Stopper")
         stopper_counts = stopper_df.groupby('Stopper').agg(Cantidad=('Sitio', 'count'), Sitios=('Sitio', lambda x: '<br>'.join(x))).reset_index()
-        fig_stopper_bar = px.bar(stopper_counts, x='Cantidad', y='Stopper', orientation='h', text='Cantidad', custom_data=['Sitios'], color='Cantidad', color_continuous_scale=px.colors.sequential.Purples_r)
+        
+        # --- INICIO DE LA CORRECCIÓN: Se quita la '_r' para que la escala de color no sea invertida ---
+        fig_stopper_bar = px.bar(stopper_counts, x='Cantidad', y='Stopper', orientation='h', text='Cantidad', custom_data=['Sitios'], color='Cantidad', color_continuous_scale=px.colors.sequential.Purples)
+        # --- FIN DE LA CORRECCIÓN ---
+
         fig_stopper_bar.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title=None, xaxis_title="Cantidad de Sitios", showlegend=False, coloraxis_showscale=False, height=300 + len(stopper_counts) * 30)
         fig_stopper_bar.update_traces(textposition='inside', hovertemplate='<b>%{y}</b><br>Cantidad de Sitios: %{x}<br><br><b>Sitios Afectados:</b><br>%{customdata[0]}<extra></extra>')
         st.plotly_chart(fig_stopper_bar, use_container_width=True)
@@ -185,7 +189,7 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
     forecast_comp_df['Variacion'] = forecast_comp_df['WeekNum_Movil'] - forecast_comp_df['WeekNum_Original']
     
     def get_status_and_color(v):
-        if v > 0: return 'Reprogramado', '#d93025' # Rojo
+        if v > 0: return 'Retrasado', '#d93025' # Rojo
         if v < 0: return 'Adelantado', '#1e8e3e' # Verde
         return 'En Fecha', '#1a73e8' # Azul
 
@@ -193,7 +197,6 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
     
     forecast_comp_df.sort_values(by=['WeekNum_Movil', 'Sitio'], ascending=[True, True], inplace=True)
 
-    # --- INICIO DEL BLOQUE MODIFICADO Y CORREGIDO ---
     if forecast_comp_df.empty:
         st.info("No hay sitios con 'Forecast Firma' y 'Forecast Móvil' válidos para comparar.")
     else:
@@ -291,7 +294,6 @@ if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_ges
                       annotation_font_color="purple")
 
         st.plotly_chart(fig, use_container_width=True)
-    # --- FIN DEL BLOQUE MODIFICADO Y CORREGIDO ---
 
 else:
     st.info("Para ver la comparación, asegúrese de que el archivo Excel contenga las columnas 'Forecast Firma' y 'Forecast Móvil'.")
