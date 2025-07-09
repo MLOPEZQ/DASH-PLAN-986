@@ -280,36 +280,42 @@ with tab1:
 
 df_forecast = df_gestion_activa.copy()
 
-# Extraer número de semana
+# Forecast Firma (plan)
 df_forecast['Week_Forecast'] = pd.to_numeric(df_forecast['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
+
+# Week Firma (real)
 df_forecast['Week_Real'] = pd.to_numeric(df_forecast['Week Firma'].str.extract(r'(\d+)')[0], errors='coerce')
 
-# Filtrar para Forecast: solo donde haya Forecast Firma
+# Filtrar Forecast
 df_forecast_forecast = df_forecast.dropna(subset=['Week_Forecast']).copy()
 df_forecast_forecast['Week_Forecast'] = df_forecast_forecast['Week_Forecast'].astype(int)
 
-# Filtrar para Real: solo donde haya Week Firma
+# Filtrar Real
 df_forecast_real = df_forecast.dropna(subset=['Week_Real']).copy()
 df_forecast_real['Week_Real'] = df_forecast_real['Week_Real'].astype(int)
 
-# Semanas
+# Semanas forecast (hasta W40)
 min_week = 12
 max_week = 40
-weeks = list(range(min_week, max_week + 1))
+weeks_forecast = list(range(min_week, max_week + 1))
+
+# Semanas real (hasta última firmada)
+last_real_week = df_forecast_real['Week_Real'].max()
+weeks_real = list(range(min_week, last_real_week + 1))
 
 # Forecast acumulado
-forecast_weekly = df_forecast_forecast.groupby('Week_Forecast').size().reindex(weeks, fill_value=0).tolist()
+forecast_weekly = df_forecast_forecast.groupby('Week_Forecast').size().reindex(weeks_forecast, fill_value=0).tolist()
 forecast_cum = pd.Series(forecast_weekly).cumsum().tolist()
 
 # Real acumulado
-real_weekly = df_forecast_real.groupby('Week_Real').size().reindex(weeks, fill_value=0).tolist()
+real_weekly = df_forecast_real.groupby('Week_Real').size().reindex(weeks_real, fill_value=0).tolist()
 real_cum = pd.Series(real_weekly).cumsum().tolist()
 
 fig = go.Figure()
 
 # Forecast acumulado (azul)
 fig.add_trace(go.Scatter(
-    x=weeks,
+    x=weeks_forecast,
     y=forecast_cum,
     mode='lines+markers+text',
     name='Forecast Acumulado',
@@ -322,7 +328,7 @@ fig.add_trace(go.Scatter(
 
 # Real acumulado (rojo)
 fig.add_trace(go.Scatter(
-    x=weeks,
+    x=weeks_real,
     y=real_cum,
     mode='lines+markers+text',
     name='Real Acumulado',
@@ -352,8 +358,8 @@ fig.update_layout(
 st.plotly_chart(fig, use_container_width=True)
 
 # --------------------------------------------------------
-# VISUALIZACIÓN DE CRONOGRAMA TSS
-# --------------------------------------------------------
+# CRONOGRAMA TSS
+
 st.divider()
 st.subheader("📅 Cronograma de TSS")
 
@@ -414,7 +420,7 @@ else:
 
 # --------------------------------------------------------
 # MAPS
-# --------------------------------------------------------
+
 st.divider()
 st.subheader("🌐 Georeferencia")
 mapa_df = df_filtrado.dropna(subset=['Lat', 'Long'])
