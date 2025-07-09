@@ -141,6 +141,10 @@ if 'Estatus' in df_filtrado.columns:
                 st.metric(label=row['Estatus Limpio'], value=row['Cantidad'])
                 st.button("Ver Detalle", key=f"btn_{row['Estatus Limpio']}", on_click=set_selected_status, args=(row['Estatus Limpio'],), use_container_width=True)
 
+    if st.session_state.selected_status and st.session_state.selected_status not in ['ALL', 'ACTIVE']:
+        detalle_df = df_filtrado[df_filtrado['Estatus Limpio'] == st.session_state.selected_status]
+        display_detail_view(title=f"🔎 Detalle: Estatus {st.session_state.selected_status}", dataframe=detalle_df)
+
 st.divider()
 st.subheader("📊 Detalle por Stopper (Sitios en Gestión Activa)")
 if 'Stopper' in df_filtrado.columns and not df_gestion_activa.empty:
@@ -154,9 +158,6 @@ if 'Stopper' in df_filtrado.columns and not df_gestion_activa.empty:
 else:
     st.info("No hay sitios en gestión activa o sin columna Stopper.")
 
-# ----------------------
-# CRONOGRAMA TSS
-# ----------------------
 st.divider()
 st.subheader("📅 Cronograma de TSS")
 
@@ -215,19 +216,13 @@ if 'Fecha TSS' in df_gestion_activa.columns:
 else:
     st.info("La columna 'Fecha TSS' no se encontró en los datos.")
 
-# ----------------------
-# FORECAST
-# ----------------------
 st.divider()
 st.subheader("🔮 FORECAST")
 tab1, tab2 = st.tabs(["FORECAST FIRMA", "FORECAST FIRMA ACUMULADO"])
 
-# ---------------- Tab 1: Forecast Firma ----------------
 with tab1:
-    # Aquí puedes copiar la lógica completa que ya tenías para Forecast Firma
-    st.write("Tu gráfico detallado Forecast Firma original va aquí.")
+    st.write("Tu gráfico detallado Forecast Firma original va aquí (copia tu código exacto que tenías).")
 
-# ---------------- Tab 2: Forecast Firma Acumulado ----------------
 with tab2:
     df_forecast = df_gestion_activa.copy()
     df_forecast['Week_Forecast'] = pd.to_numeric(df_forecast['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
@@ -288,9 +283,6 @@ with tab2:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# -------------------
-# Mapa
-# -------------------
 st.divider()
 st.subheader("🌐 Georeferencia")
 mapa_df = df_filtrado.dropna(subset=['Lat', 'Long'])
