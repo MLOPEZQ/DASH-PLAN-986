@@ -277,6 +277,7 @@ with tab1:
         st.info("Para ver la comparación, asegúrese de que el archivo Excel contenga las columnas 'Forecast Firma' y 'Forecast Móvil'.")
 
 # ---------------- TAB 2: Forecast Firma Acumulado ----------------
+
 df_forecast = df_gestion_activa.copy()
 
 # Extraer número de semana desde Forecast Firma y Week Firma
@@ -286,9 +287,9 @@ df_forecast['Week_Real'] = pd.to_numeric(df_forecast['Week Firma'].str.extract(r
 df_forecast = df_forecast.dropna(subset=['Week_Forecast', 'Week_Real'])
 df_forecast[['Week_Forecast', 'Week_Real']] = df_forecast[['Week_Forecast', 'Week_Real']].astype(int)
 
-# Definir semanas desde la 12
+# Definir semanas desde la 12 hasta la 40
 min_week = 12
-max_week = max(df_forecast['Week_Forecast'].max(), df_forecast['Week_Real'].max())
+max_week = 40
 weeks = list(range(min_week, max_week + 1))
 
 forecast_weekly = df_forecast.groupby('Week_Forecast').size().reindex(weeks, fill_value=0).tolist()
@@ -300,30 +301,30 @@ real_cum = pd.Series(real_weekly).cumsum().tolist()
 # Crear gráfico
 fig = go.Figure()
 
-# Forecast acumulado (línea azul con puntos)
+# Forecast acumulado
 fig.add_trace(go.Scatter(
     x=weeks,
     y=forecast_cum,
     mode='lines+markers+text',
     name='Forecast Acumulado',
     line=dict(color='royalblue', width=3, dash='dash'),
-    marker=dict(size=8, color='royalblue'),
+    marker=dict(size=8, color='white', line=dict(color='royalblue', width=2)),
     text=[str(v) if v != 0 else "" for v in forecast_cum],
     textposition="top center",
-    textfont=dict(size=12)
+    textfont=dict(size=10, color="royalblue")
 ))
 
-# Real acumulado (línea roja con puntos)
+# Real acumulado
 fig.add_trace(go.Scatter(
     x=weeks,
     y=real_cum,
     mode='lines+markers+text',
     name='Real Acumulado',
     line=dict(color='red', width=3),
-    marker=dict(size=8, color='red'),
+    marker=dict(size=8, color='white', line=dict(color='red', width=2)),
     text=[str(v) if v != 0 else "" for v in real_cum],
     textposition="top center",
-    textfont=dict(size=12)
+    textfont=dict(size=10, color="red")
 ))
 
 fig.update_layout(
@@ -331,9 +332,11 @@ fig.update_layout(
         title="Semana",
         dtick=1,
         tickmode='linear',
-        range=[min_week - 0.5, max_week + 0.5]
+        range=[min_week - 0.5, max_week + 0.5],
+        gridcolor='lightgrey',
+        showgrid=True
     ),
-    yaxis=dict(title="Q Firmas", rangemode='tozero'),
+    yaxis=dict(title="Q Firmas", rangemode='tozero', gridcolor='lightgrey', showgrid=True),
     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
     template="simple_white",
     title="Forecast vs Real (Acumulado)"
