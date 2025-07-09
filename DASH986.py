@@ -277,66 +277,69 @@ with tab1:
         st.info("Para ver la comparación, asegúrese de que el archivo Excel contenga las columnas 'Forecast Firma' y 'Forecast Móvil'.")
 
 # ---------------- TAB 2: Forecast Firma Acumulado ----------------
-with tab2:
-    st.subheader("📈 Forecast Firma Acumulado")
+df_forecast = df_gestion_activa.copy()
 
-    df_forecast = df_gestion_activa.copy()
+# Extraer número de semana desde Forecast Firma y Week Firma
+df_forecast['Week_Forecast'] = pd.to_numeric(df_forecast['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
+df_forecast['Week_Real'] = pd.to_numeric(df_forecast['Week Firma'].str.extract(r'(\d+)')[0], errors='coerce')
 
-    df_forecast['Week_Forecast'] = pd.to_numeric(df_forecast['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
-    df_forecast['Week_Real'] = pd.to_numeric(df_forecast['Week Firma'].str.extract(r'(\d+)')[0], errors='coerce')
+df_forecast = df_forecast.dropna(subset=['Week_Forecast', 'Week_Real'])
+df_forecast[['Week_Forecast', 'Week_Real']] = df_forecast[['Week_Forecast', 'Week_Real']].astype(int)
 
-    df_forecast = df_forecast.dropna(subset=['Week_Forecast', 'Week_Real'])
-    df_forecast[['Week_Forecast', 'Week_Real']] = df_forecast[['Week_Forecast', 'Week_Real']].astype(int)
+# Definir semanas desde la 12
+min_week = 12
+max_week = max(df_forecast['Week_Forecast'].max(), df_forecast['Week_Real'].max())
+weeks = list(range(min_week, max_week + 1))
 
-    weeks = list(range(min(df_forecast['Week_Forecast'].min(), df_forecast['Week_Real'].min()), 
-                       max(df_forecast['Week_Forecast'].max(), df_forecast['Week_Real'].max()) + 1))
+forecast_weekly = df_forecast.groupby('Week_Forecast').size().reindex(weeks, fill_value=0).tolist()
+real_weekly = df_forecast.groupby('Week_Real').size().reindex(weeks, fill_value=0).tolist()
 
-    forecast_weekly = df_forecast.groupby('Week_Forecast').size().reindex(weeks, fill_value=0).tolist()
-    real_weekly = df_forecast.groupby('Week_Real').size().reindex(weeks, fill_value=0).tolist()
+forecast_cum = pd.Series(forecast_weekly).cumsum().tolist()
+real_cum = pd.Series(real_weekly).cumsum().tolist()
 
-    forecast_cum = pd.Series(forecast_weekly).cumsum().tolist()
-    real_cum = pd.Series(real_weekly).cumsum().tolist()
+# Crear gráfico
+fig = go.Figure()
 
-    gap_weekly = [r - f for r, f in zip(real_weekly, forecast_weekly)]
-    gap_cum = list(pd.Series(gap_weekly).cumsum())
+# Forecast acumulado (línea azul con puntos)
+fig.add_trace(go.Scatter(
+    x=weeks,
+    y=forecast_cum,
+    mode='lines+markers+text',
+    name='Forecast Acumulado',
+    line=dict(color='royalblue', width=3, dash='dash'),
+    marker=dict(size=8, color='royalblue'),
+    text=[str(v) if v != 0 else "" for v in forecast_cum],
+    textposition="top center",
+    textfont=dict(size=12)
+))
 
-    fig_forecast = go.Figure()
+# Real acumulado (línea roja con puntos)
+fig.add_trace(go.Scatter(
+    x=weeks,
+    y=real_cum,
+    mode='lines+markers+text',
+    name='Real Acumulado',
+    line=dict(color='red', width=3),
+    marker=dict(size=8, color='red'),
+    text=[str(v) if v != 0 else "" for v in real_cum],
+    textposition="top center",
+    textfont=dict(size=12)
+))
 
-    fig_forecast.add_trace(go.Scatter(
-        x=weeks,
-        y=forecast_cum,
-        mode='lines+markers',
-        name='Forecast Acumulado',
-        line=dict(color='royalblue', width=3, dash='dash'),
-        marker=dict(size=6)
-    ))
+fig.update_layout(
+    xaxis=dict(
+        title="Semana",
+        dtick=1,
+        tickmode='linear',
+        range=[min_week - 0.5, max_week + 0.5]
+    ),
+    yaxis=dict(title="Q Firmas", rangemode='tozero'),
+    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+    template="simple_white",
+    title="Forecast vs Real (Acumulado)"
+)
 
-    fig_forecast.add_trace(go.Scatter(
-        x=weeks,
-        y=real_cum,
-        mode='lines+markers',
-        name='Real Acumulado',
-        line=dict(color='red', width=3),
-        marker=dict(size=6)
-    ))
-
-    fig_forecast.update_layout(
-        xaxis_title="Semana",
-        yaxis_title="Q Firmas",
-        title="Forecast vs Real (Acumulado)",
-        template="simple_white",
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
-    )
-
-    st.plotly_chart(fig_forecast, use_container_width=True)
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric(label="GAP Semanal Última Semana", value=gap_weekly[-1])
-    with col2:
-        st.metric(label="GAP Acumulado", value=gap_cum[-1])
-    with col3:
-        st.metric(label="Total Firmas Reales", value=real_cum[-1])
+st.plotly_chart(fig, use_container_width=True)
 
 # --------------------------------------------------------
 # VISUALIZACIÓN DE CRONOGRAMA TSS
