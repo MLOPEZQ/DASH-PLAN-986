@@ -278,33 +278,26 @@ with tab1:
 
 # ---------------- TAB 2: Forecast Firma Acumulado ----------------
 
+
 df_forecast = df_gestion_activa.copy()
 
-# Extraer número de semana desde Forecast Firma y Week Firma
 df_forecast['Week_Forecast'] = pd.to_numeric(df_forecast['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
 df_forecast['Week_Real'] = pd.to_numeric(df_forecast['Week Firma'].str.extract(r'(\d+)')[0], errors='coerce')
 
 df_forecast = df_forecast.dropna(subset=['Week_Forecast', 'Week_Real'])
 df_forecast[['Week_Forecast', 'Week_Real']] = df_forecast[['Week_Forecast', 'Week_Real']].astype(int)
 
-# Última semana real para cortar línea roja
 last_real_week = df_forecast['Week_Real'].max()
 
-# Semanas para forecast (12 a 40)
 weeks_forecast = list(range(12, 40 + 1))
-
-# Semanas para real (12 hasta última real)
 weeks_real = list(range(12, last_real_week + 1))
 
-# Forecast acumulado
 forecast_weekly = df_forecast.groupby('Week_Forecast').size().reindex(weeks_forecast, fill_value=0).tolist()
 forecast_cum = pd.Series(forecast_weekly).cumsum().tolist()
 
-# Real acumulado
 real_weekly = df_forecast.groupby('Week_Real').size().reindex(weeks_real, fill_value=0).tolist()
 real_cum = pd.Series(real_weekly).cumsum().tolist()
 
-# Crear gráfico
 fig = go.Figure()
 
 # Forecast acumulado (línea azul)
@@ -313,11 +306,11 @@ fig.add_trace(go.Scatter(
     y=forecast_cum,
     mode='lines+markers+text',
     name='Forecast Acumulado',
-    line=dict(color='royalblue', width=3, dash='dash'),
-    marker=dict(size=8, color='white', line=dict(color='royalblue', width=2)),
+    line=dict(color='royalblue', width=2, dash='dash'),
+    marker=dict(size=6, symbol='circle-open', line=dict(color='royalblue', width=2)),
     text=[str(v) if v != 0 else "" for v in forecast_cum],
     textposition="top center",
-    textfont=dict(size=10, color="royalblue")
+    textfont=dict(size=9, color="royalblue")
 ))
 
 # Real acumulado (línea roja)
@@ -326,11 +319,11 @@ fig.add_trace(go.Scatter(
     y=real_cum,
     mode='lines+markers+text',
     name='Real Acumulado',
-    line=dict(color='red', width=3),
-    marker=dict(size=8, color='white', line=dict(color='red', width=2)),
+    line=dict(color='red', width=2),
+    marker=dict(size=6, symbol='circle-open', line=dict(color='red', width=2)),
     text=[str(v) if v != 0 else "" for v in real_cum],
     textposition="top center",
-    textfont=dict(size=10, color="red")
+    textfont=dict(size=9, color="red")
 ))
 
 fig.update_layout(
@@ -339,18 +332,17 @@ fig.update_layout(
         dtick=1,
         tickmode='linear',
         range=[12 - 0.5, 40 + 0.5],
-        tickformat="W%{tick}",  # Etiqueta tipo W12, W13
-        gridcolor='lightgrey',
+        tickvals=list(range(12, 41)),
+        ticktext=[f"W{w}" for w in range(12, 41)],
+        gridcolor='rgba(200, 200, 200, 0.3)',
         showgrid=True
     ),
-    yaxis=dict(title="Q Firmas", rangemode='tozero', gridcolor='lightgrey', showgrid=True),
+    yaxis=dict(title="Q Firmas", rangemode='tozero', gridcolor='rgba(200, 200, 200, 0.3)', showgrid=True),
     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
-    template="simple_white",
-    title="Forecast vs Real (Acumulado)"
+    template="simple_white"
 )
 
 st.plotly_chart(fig, use_container_width=True)
-
 # --------------------------------------------------------
 # VISUALIZACIÓN DE CRONOGRAMA TSS
 # --------------------------------------------------------
