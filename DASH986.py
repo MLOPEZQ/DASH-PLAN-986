@@ -217,7 +217,7 @@ else:
     st.info("La columna 'Fecha TSS' no se encontró en los datos.")
 
 st.divider()
-st.subheader("🔮 FORECAST")
+st.subheader("FORECAST")
 tab1, tab2 = st.tabs(["FORECAST FIRMA", "FORECAST FIRMA ACUMULADO"])
 
 with tab1:
@@ -309,7 +309,7 @@ with tab1:
 
             fig.update_layout(
                 yaxis_title=None,
-                xaxis_title="Número de Semana del Año",
+                xaxis_title="Semana",
                 height=200 + len(forecast_comp_df) * 40,
                 yaxis=dict(type='category', categoryorder='array', categoryarray=forecast_comp_df['Sitio'].tolist()),
                 margin=dict(l=250, r=40, t=80, b=40),
