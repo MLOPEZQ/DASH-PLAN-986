@@ -154,11 +154,80 @@ if 'Stopper' in df_filtrado.columns and not df_gestion_activa.empty:
 else:
     st.info("No hay sitios en gestión activa o sin columna Stopper.")
 
+# ----------------------
+# CRONOGRAMA TSS
+# ----------------------
+st.divider()
+st.subheader("📅 Cronograma de TSS")
+
+def parse_tss_date(value):
+    if pd.isna(value):
+        return None
+    if isinstance(value, (datetime, pd.Timestamp)):
+        return value
+    if isinstance(value, str):
+        value_lower = value.lower().strip()
+        if value_lower.startswith('w'):
+            try:
+                week_num = int(value_lower.replace('w', ''))
+                current_year = datetime.now().year
+                return datetime.fromisocalendar(current_year, week_num, 1)
+            except (ValueError, TypeError):
+                return None
+    return pd.to_datetime(value, errors='coerce')
+
+if 'Fecha TSS' in df_gestion_activa.columns:
+    tss_df = df_gestion_activa.dropna(subset=['Fecha TSS']).copy()
+    tss_df['SortableDate'] = tss_df['Fecha TSS'].apply(parse_tss_date)
+    tss_df = tss_df.dropna(subset=['SortableDate']).sort_values('SortableDate')
+
+    expander_title = f"Ver Cronograma de TSS ({len(tss_df)} sitios con fecha)"
+    with st.expander(expander_title):
+        if not tss_df.empty:
+            today = datetime.now().date()
+            current_isocal = datetime.now().isocalendar()
+            start_of_week = datetime.fromisocalendar(current_isocal.year, current_isocal.week, 1).date()
+            end_of_week = datetime.fromisocalendar(current_isocal.year, current_isocal.week, 7).date()
+
+            for _, row in tss_df.iterrows():
+                site_name = row['Sitio']
+                tss_date = row['SortableDate'].date()
+                original_format = row['Fecha TSS']
+
+                if isinstance(original_format, (datetime, pd.Timestamp)):
+                    display_date = original_format.strftime('%d-%m-%Y')
+                else:
+                    display_date = str(original_format).strip()
+
+                if tss_date < start_of_week:
+                    status_icon = "✅"
+                    status_text = "(Realizada)"
+                elif start_of_week <= tss_date <= end_of_week:
+                    status_icon = "🎯"
+                    status_text = "(Semana Actual)"
+                else:
+                    status_icon = "🗓️"
+                    status_text = "(En Programación)"
+
+                st.markdown(f"{status_icon} **{site_name}**: {display_date} {status_text}")
+        else:
+            st.info("No hay sitios en gestión activa con una fecha de TSS programada.")
+else:
+    st.info("La columna 'Fecha TSS' no se encontró en los datos.")
+
+# ----------------------
+# FORECAST
+# ----------------------
 st.divider()
 st.subheader("🔮 FORECAST")
 tab1, tab2 = st.tabs(["FORECAST FIRMA", "FORECAST FIRMA ACUMULADO"])
 
-# ---------------- TAB 2 Forecast Acumulado (Corregido) ----------------
+# ---------------- Tab 1: Forecast Firma ----------------
+with tab1:
+    # Aquí puedes copiar la lógica completa que ya tenías para Forecast Firma
+    st.write("Tu gráfico detallado Forecast Firma original va aquí.")
+
+# ---------------- Tab 2: Forecast Firma Acumulado ----------------
 with tab2:
     df_forecast = df_gestion_activa.copy()
     df_forecast['Week_Forecast'] = pd.to_numeric(df_forecast['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
@@ -219,7 +288,9 @@ with tab2:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# ------------------- Mapa -------------------
+# -------------------
+# Mapa
+# -------------------
 st.divider()
 st.subheader("🌐 Georeferencia")
 mapa_df = df_filtrado.dropna(subset=['Lat', 'Long'])
