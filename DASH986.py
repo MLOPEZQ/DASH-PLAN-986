@@ -216,6 +216,8 @@ if 'Fecha TSS' in df_gestion_activa.columns:
 else:
     st.info("La columna 'Fecha TSS' no se encontró en los datos.")
 
+#FORECAST
+
 st.divider()
 st.subheader("FORECAST")
 tab1, tab2 = st.tabs(["FORECAST FIRMA", "FORECAST FIRMA ACUMULADO"])
@@ -326,6 +328,8 @@ with tab1:
     else:
         st.info("Para ver la comparación, asegúrese de que el archivo Excel contenga las columnas 'Forecast Firma' y 'Forecast Móvil'.")
 
+#FORECAST ACUMULADO
+
 with tab2:
     df_forecast = df_gestion_activa.copy()
     df_forecast['Week_Forecast'] = pd.to_numeric(df_forecast['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
@@ -355,19 +359,40 @@ with tab2:
         textfont=dict(size=9, color="royalblue")
     ))
 
+    import datetime
+
     if not np.isnan(last_real_week):
         last_real_week = int(last_real_week)
-        weeks_real = list(range(min_week, last_real_week + 1))
-        real_weekly = df_forecast_real.groupby('Week_Real').size().reindex(weeks_real, fill_value=0).tolist()
-        real_cum = pd.Series(real_weekly).cumsum().tolist()
+
+        # Semana actual (hoy)
+        current_week = datetime.datetime.now().isocalendar().week
+        # Limitar a max_week en caso de que la semana actual sea mayor
+        end_week = min(current_week, max_week)
+
+        # Semanas con firmas reales
+        weeks_real_exist = list(range(min_week, last_real_week + 1))
+        real_weekly_exist = df_forecast_real.groupby('Week_Real').size().reindex(weeks_real_exist, fill_value=0).tolist()
+        real_cum_exist = pd.Series(real_weekly_exist).cumsum()
+
+        # Último valor acumulado
+        last_value = real_cum_exist.iloc[-1] if len(real_cum_exist) > 0 else 0
+
+        # Extender semanas hasta la semana actual
+        weeks_real_full = list(range(min_week, end_week + 1))
+        if end_week > last_real_week:
+            extension = [last_value] * (end_week - last_real_week)
+            real_cum_full = real_cum_exist.tolist() + extension
+        else:
+            real_cum_full = real_cum_exist.tolist()
+
         fig.add_trace(go.Scatter(
-            x=weeks_real,
-            y=real_cum,
+            x=weeks_real_full,
+            y=real_cum_full,
             mode='lines+markers+text',
             name='Real Acumulado',
             line=dict(color='red', width=2),
             marker=dict(size=6, symbol='circle-open', line=dict(color='red', width=2)),
-            text=[str(v) if v != 0 else "" for v in real_cum],
+            text=[str(v) if v != 0 else "" for v in real_cum_full],
             textposition="top center",
             textfont=dict(size=9, color="red")
         ))
@@ -385,6 +410,8 @@ with tab2:
         template="simple_white"
     )
     st.plotly_chart(fig, use_container_width=True)
+
+#MAPS
 
 st.divider()
 st.subheader("🌐 Georeferencia")
