@@ -128,32 +128,51 @@ if st.session_state.selected_status in ['ALL', 'ACTIVE']:
     elif st.session_state.selected_status == 'ACTIVE':
         display_detail_view(title="⚙️ Detalle: Sitios en Gestión Activa", dataframe=df_gestion_activa)
 
+st.subheader("📈 Resumen ESTATUS")
+if 'Estatus' in df_filtrado.columns:
+    status_counts = df_filtrado.groupby(['Estatus', 'Estatus Limpio']).agg(Cantidad=("Sitio", "count")).reset_index()
+    status_counts['Orden'] = status_counts['Estatus'].str.extract(r'(\d+)').astype(int)
+    status_counts = status_counts.sort_values('Orden', ascending=True).reset_index(drop=True)
+    num_cols = 5
+    cols = st.columns(num_cols)
+    for i, row in status_counts.iterrows():
+        with cols[i % num_cols]:
+            with st.container(border=True):
+                st.metric(label=row['Estatus Limpio'], value=row['Cantidad'])
+                st.button("Ver Detalle", key=f"btn_{row['Estatus Limpio']}", on_click=set_selected_status, args=(row['Estatus Limpio'],), use_container_width=True)
+
+st.divider()
+st.subheader("📊 Detalle por Stopper (Sitios en Gestión Activa)")
+if 'Stopper' in df_filtrado.columns and not df_gestion_activa.empty:
+    stopper_df = df_gestion_activa.copy()
+    stopper_df['Stopper'] = stopper_df['Stopper'].fillna("Sin Stopper")
+    stopper_counts = stopper_df.groupby('Stopper').agg(Cantidad=('Sitio', 'count'), Sitios=('Sitio', lambda x: '<br>'.join(x))).reset_index()
+    fig_stopper = px.bar(stopper_counts, x='Cantidad', y='Stopper', orientation='h', text='Cantidad', custom_data=['Sitios'], color='Cantidad', color_continuous_scale=px.colors.sequential.Purples)
+    fig_stopper.update_layout(yaxis={'categoryorder': 'total ascending'}, showlegend=False, coloraxis_showscale=False, height=300 + len(stopper_counts) * 30)
+    fig_stopper.update_traces(textposition='inside', hovertemplate='<b>%{y}</b><br>Cantidad: %{x}<br><br>%{customdata[0]}<extra></extra>')
+    st.plotly_chart(fig_stopper, use_container_width=True)
+else:
+    st.info("No hay sitios en gestión activa o sin columna Stopper.")
+
 st.divider()
 st.subheader("🔮 FORECAST")
-
 tab1, tab2 = st.tabs(["FORECAST FIRMA", "FORECAST FIRMA ACUMULADO"])
 
-# -----------------------------------------------------------
-# TAB 2: Forecast Firma Acumulado (Con corrección final)
-# -----------------------------------------------------------
+# ---------------- TAB 2 Forecast Acumulado (Corregido) ----------------
 with tab2:
     df_forecast = df_gestion_activa.copy()
     df_forecast['Week_Forecast'] = pd.to_numeric(df_forecast['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
     df_forecast['Week_Real'] = pd.to_numeric(df_forecast['Week Firma'].str.extract(r'(\d+)')[0], errors='coerce')
-
     df_forecast_forecast = df_forecast.dropna(subset=['Week_Forecast']).copy()
     df_forecast_forecast['Week_Forecast'] = df_forecast_forecast['Week_Forecast'].astype(int)
-
     df_forecast_real = df_forecast.dropna(subset=['Week_Real']).copy()
     df_forecast_real['Week_Real'] = df_forecast_real['Week_Real'].astype(int)
-
     min_week = 12
     max_week = 40
     weeks_forecast = list(range(min_week, max_week + 1))
     last_real_week = df_forecast_real['Week_Real'].max()
 
     fig = go.Figure()
-
     forecast_weekly = df_forecast_forecast.groupby('Week_Forecast').size().reindex(weeks_forecast, fill_value=0).tolist()
     forecast_cum = pd.Series(forecast_weekly).cumsum().tolist()
 
@@ -174,7 +193,6 @@ with tab2:
         weeks_real = list(range(min_week, last_real_week + 1))
         real_weekly = df_forecast_real.groupby('Week_Real').size().reindex(weeks_real, fill_value=0).tolist()
         real_cum = pd.Series(real_weekly).cumsum().tolist()
-
         fig.add_trace(go.Scatter(
             x=weeks_real,
             y=real_cum,
@@ -199,12 +217,9 @@ with tab2:
         legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
         template="simple_white"
     )
-
     st.plotly_chart(fig, use_container_width=True)
 
-# -------------------
-# MAPA
-# -------------------
+# ------------------- Mapa -------------------
 st.divider()
 st.subheader("🌐 Georeferencia")
 mapa_df = df_filtrado.dropna(subset=['Lat', 'Long'])
