@@ -287,23 +287,29 @@ df_forecast['Week_Real'] = pd.to_numeric(df_forecast['Week Firma'].str.extract(r
 df_forecast = df_forecast.dropna(subset=['Week_Forecast', 'Week_Real'])
 df_forecast[['Week_Forecast', 'Week_Real']] = df_forecast[['Week_Forecast', 'Week_Real']].astype(int)
 
-# Definir semanas desde la 12 hasta la 40
-min_week = 12
-max_week = 40
-weeks = list(range(min_week, max_week + 1))
+# Última semana real para cortar línea roja
+last_real_week = df_forecast['Week_Real'].max()
 
-forecast_weekly = df_forecast.groupby('Week_Forecast').size().reindex(weeks, fill_value=0).tolist()
-real_weekly = df_forecast.groupby('Week_Real').size().reindex(weeks, fill_value=0).tolist()
+# Semanas para forecast (12 a 40)
+weeks_forecast = list(range(12, 40 + 1))
 
+# Semanas para real (12 hasta última real)
+weeks_real = list(range(12, last_real_week + 1))
+
+# Forecast acumulado
+forecast_weekly = df_forecast.groupby('Week_Forecast').size().reindex(weeks_forecast, fill_value=0).tolist()
 forecast_cum = pd.Series(forecast_weekly).cumsum().tolist()
+
+# Real acumulado
+real_weekly = df_forecast.groupby('Week_Real').size().reindex(weeks_real, fill_value=0).tolist()
 real_cum = pd.Series(real_weekly).cumsum().tolist()
 
 # Crear gráfico
 fig = go.Figure()
 
-# Forecast acumulado
+# Forecast acumulado (línea azul)
 fig.add_trace(go.Scatter(
-    x=weeks,
+    x=weeks_forecast,
     y=forecast_cum,
     mode='lines+markers+text',
     name='Forecast Acumulado',
@@ -314,9 +320,9 @@ fig.add_trace(go.Scatter(
     textfont=dict(size=10, color="royalblue")
 ))
 
-# Real acumulado
+# Real acumulado (línea roja)
 fig.add_trace(go.Scatter(
-    x=weeks,
+    x=weeks_real,
     y=real_cum,
     mode='lines+markers+text',
     name='Real Acumulado',
@@ -332,7 +338,8 @@ fig.update_layout(
         title="Semana",
         dtick=1,
         tickmode='linear',
-        range=[min_week - 0.5, max_week + 0.5],
+        range=[12 - 0.5, 40 + 0.5],
+        tickformat="W%{tick}",  # Etiqueta tipo W12, W13
         gridcolor='lightgrey',
         showgrid=True
     ),
