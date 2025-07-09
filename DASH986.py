@@ -221,7 +221,135 @@ st.subheader("🔮 FORECAST")
 tab1, tab2 = st.tabs(["FORECAST FIRMA", "FORECAST FIRMA ACUMULADO"])
 
 with tab1:
-    st.write("Tu gráfico detallado Forecast Firma original va aquí (copia tu código exacto que tenías).")
+    st.write("FOREC")
+
+st.divider()
+st.subheader("📊 Forecast de Firma")
+
+if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_gestion_activa.columns:
+    
+    forecast_comp_df = df_gestion_activa.copy()
+    forecast_comp_df = forecast_comp_df[forecast_comp_df['Estatus Limpio'] != 'Firmado']
+    forecast_comp_df = forecast_comp_df.dropna(subset=['Forecast Firma', 'Forecast Móvil'])
+
+    forecast_comp_df['WeekNum_Original'] = pd.to_numeric(forecast_comp_df['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
+    forecast_comp_df['WeekNum_Movil'] = pd.to_numeric(forecast_comp_df['Forecast Móvil'].str.extract(r'(\d+)')[0], errors='coerce')
+    
+    forecast_comp_df.dropna(subset=['WeekNum_Original', 'WeekNum_Movil'], inplace=True)
+    forecast_comp_df[['WeekNum_Original', 'WeekNum_Movil']] = forecast_comp_df[['WeekNum_Original', 'WeekNum_Movil']].astype(int)
+
+    forecast_comp_df['Variacion'] = forecast_comp_df['WeekNum_Movil'] - forecast_comp_df['WeekNum_Original']
+    
+    def get_status_and_color(v):
+        if v > 0: return 'Retrasado', '#d93025' # Rojo
+        if v < 0: return 'Adelantado', '#1e8e3e' # Verde
+        return 'En Fecha', '#1a73e8' # Azul
+
+    forecast_comp_df[['Status', 'Color']] = forecast_comp_df['Variacion'].apply(get_status_and_color).apply(pd.Series)
+    
+    forecast_comp_df.sort_values(by=['WeekNum_Movil', 'Sitio'], ascending=[True, True], inplace=True)
+
+    if forecast_comp_df.empty:
+        st.info("No hay sitios con 'Forecast Firma' y 'Forecast Móvil' válidos para comparar.")
+    else:
+        fig = go.Figure()
+        legend_added = set()
+
+        for _, row in forecast_comp_df.iterrows():
+            y_pos = row['Sitio']
+            x_orig = row['WeekNum_Original']
+            x_movil = row['WeekNum_Movil']
+            color = row['Color']
+            status = row['Status']
+
+            show_legend = status not in legend_added
+            if show_legend:
+                legend_added.add(status)
+            
+            # Caso 1: Forecast Original y Móvil son IGUALES
+            if row['Variacion'] == 0:
+                fig.add_trace(go.Scatter(
+                    x=[x_movil], y=[y_pos],
+                    mode='markers+text',
+                    text=[str(x_movil)],
+                    textposition='middle right',
+                    textfont=dict(color='DarkSlateGrey', size=12),
+                    marker=dict(color=color, size=12, symbol='circle', line=dict(width=1, color='DarkSlateGrey')),
+                    hoverinfo='text',
+                    hovertext=f"<b>{row['Sitio']}</b><br>Forecast: W{x_movil}<br><b>(En Fecha)</b>",
+                    name=status,
+                    legendgroup=status,
+                    showlegend=show_legend
+                ))
+            # Caso 2: Forecast Original y Móvil son DIFERENTES
+            else:
+                # Línea punteada
+                fig.add_shape(type='line', x0=x_orig, y0=y_pos, x1=x_movil, y1=y_pos,
+                              line=dict(color='rgba(128, 128, 128, 0.5)', width=1.5, dash='dot'))
+                
+                # Punto Original (gris)
+                fig.add_trace(go.Scatter(
+                    x=[x_orig], y=[y_pos],
+                    mode='markers+text',
+                    text=[str(x_orig)],
+                    textposition='middle left',
+                    textfont=dict(color='grey', size=10),
+                    marker=dict(color='grey', size=8, symbol='circle'),
+                    hoverinfo='text',
+                    hovertext=f"<b>{row['Sitio']}</b><br>F. Original: W{x_orig}",
+                    showlegend=False
+                ))
+
+                # Punto Móvil (de color)
+                variacion_str = f"+{row['Variacion']}" if row['Variacion'] > 0 else str(row['Variacion'])
+                hover_text_movil = f"<b>{row['Sitio']}</b><br>F. Móvil: W{x_movil}<br>F. Original: W{x_orig}<br>Variación: {variacion_str} semanas"
+                
+                fig.add_trace(go.Scatter(
+                    x=[x_movil], y=[y_pos],
+                    mode='markers+text',
+                    text=[str(x_movil)],
+                    textposition='middle right',
+                    textfont=dict(color='DarkSlateGrey', size=12),
+                    marker=dict(color=color, size=12, symbol='circle', line=dict(width=1, color='DarkSlateGrey')),
+                    hoverinfo='text',
+                    hovertext=hover_text_movil,
+                    name=status,
+                    legendgroup=status,
+                    showlegend=show_legend
+                ))
+
+        fig.update_layout(
+            yaxis_title=None,
+            xaxis_title="Número de Semana del Año",
+            height=200 + len(forecast_comp_df) * 40,
+            yaxis=dict(
+                type='category', # Aseguramos que el eje sea categórico
+                categoryorder='array', 
+                categoryarray=forecast_comp_df['Sitio'].tolist()
+            ),
+            margin=dict(l=250, r=40, t=80, b=40),
+            plot_bgcolor='rgba(0,0,0,0)',
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1,
+                title_text=''
+            )
+        )
+        
+        current_week = datetime.now().isocalendar().week
+        fig.add_vline(x=current_week, line_width=2, line_dash="dash", line_color="purple",
+                      annotation_text="Semana Actual", 
+                      annotation_position="top left",
+                      annotation_font_color="purple")
+
+        st.plotly_chart(fig, use_container_width=True)
+
+else:
+    st.info("Para ver la comparación, asegúrese de que el archivo Excel contenga las columnas 'Forecast Firma' y 'Forecast Móvil'.")
+
 
 with tab2:
     df_forecast = df_gestion_activa.copy()
@@ -279,7 +407,8 @@ with tab2:
                    gridcolor='rgba(200, 200, 200, 0.3)', showgrid=True),
         yaxis=dict(title="Q Firmas", rangemode='tozero', gridcolor='rgba(200, 200, 200, 0.3)', showgrid=True),
         legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
-        template="simple_white"
+        template="simple_white",
+        title="Forecast vs Real (Acumulado)"
     )
     st.plotly_chart(fig, use_container_width=True)
 
