@@ -149,7 +149,6 @@ with tab1:
         textfont=dict(size=9, color="royalblue")
     ))
 
-    import datetime
 
     if not np.isnan(last_real_week):
         last_real_week = int(last_real_week)
