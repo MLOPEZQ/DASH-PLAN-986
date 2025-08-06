@@ -108,6 +108,202 @@ if df_filtrado.empty:
 if 'selected_status' not in st.session_state:
     st.session_state.selected_status = None
 
+#FORECAST
+
+st.divider()
+st.subheader("FORECAST")
+tab1, tab2 = st.tabs(["FORECAST FIRMA ACUMULADO", "FORECAST FIRMA"])
+
+with tab1:
+    df_forecast = df_gestion_activa.copy()
+    df_forecast['Week_Forecast'] = pd.to_numeric(df_forecast['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
+    df_forecast['Week_Real'] = pd.to_numeric(df_forecast['Week Firma'].str.extract(r'(\d+)')[0], errors='coerce')
+    df_forecast_forecast = df_forecast.dropna(subset=['Week_Forecast']).copy()
+    df_forecast_forecast['Week_Forecast'] = df_forecast_forecast['Week_Forecast'].astype(int)
+    df_forecast_real = df_forecast.dropna(subset=['Week_Real']).copy()
+    df_forecast_real['Week_Real'] = df_forecast_real['Week_Real'].astype(int)
+    min_week = 12
+    max_week = 40
+    weeks_forecast = list(range(min_week, max_week + 1))
+    last_real_week = df_forecast_real['Week_Real'].max()
+
+    fig = go.Figure()
+    forecast_weekly = df_forecast_forecast.groupby('Week_Forecast').size().reindex(weeks_forecast, fill_value=0).tolist()
+    forecast_cum = pd.Series(forecast_weekly).cumsum().tolist()
+
+    fig.add_trace(go.Scatter(
+        x=weeks_forecast,
+        y=forecast_cum,
+        mode='lines+markers+text',
+        name='Forecast Acumulado',
+        line=dict(color='royalblue', width=2, dash='dash'),
+        marker=dict(size=6, symbol='circle-open', line=dict(color='royalblue', width=2)),
+        text=[str(v) if v != 0 else "" for v in forecast_cum],
+        textposition="top center",
+        textfont=dict(size=9, color="royalblue")
+    ))
+
+    import datetime
+
+    if not np.isnan(last_real_week):
+        last_real_week = int(last_real_week)
+
+        # Semana actual (hoy)
+        current_week = datetime.datetime.now().isocalendar().week
+        # Limitar a max_week en caso de que la semana actual sea mayor
+        end_week = min(current_week, max_week)
+
+        # Semanas con firmas reales
+        weeks_real_exist = list(range(min_week, last_real_week + 1))
+        real_weekly_exist = df_forecast_real.groupby('Week_Real').size().reindex(weeks_real_exist, fill_value=0).tolist()
+        real_cum_exist = pd.Series(real_weekly_exist).cumsum()
+
+        # Último valor acumulado
+        last_value = real_cum_exist.iloc[-1] if len(real_cum_exist) > 0 else 0
+
+        # Extender semanas hasta la semana actual
+        weeks_real_full = list(range(min_week, end_week + 1))
+        if end_week > last_real_week:
+            extension = [last_value] * (end_week - last_real_week)
+            real_cum_full = real_cum_exist.tolist() + extension
+        else:
+            real_cum_full = real_cum_exist.tolist()
+
+        fig.add_trace(go.Scatter(
+            x=weeks_real_full,
+            y=real_cum_full,
+            mode='lines+markers+text',
+            name='Real Acumulado',
+            line=dict(color='red', width=2),
+            marker=dict(size=6, symbol='circle-open', line=dict(color='red', width=2)),
+            text=[str(v) if v != 0 else "" for v in real_cum_full],
+            textposition="top center",
+            textfont=dict(size=9, color="red")
+        ))
+    else:
+        st.info("⚠️ No hay sitios con Week Firma para este filtro. Solo se muestra Forecast.")
+
+    fig.update_layout(
+        xaxis=dict(title="Semana", dtick=1, tickmode='linear',
+                   range=[min_week - 0.5, max_week + 0.5],
+                   tickvals=list(range(min_week, max_week + 1)),
+                   ticktext=[f"W{w}" for w in range(min_week, max_week + 1)],
+                   gridcolor='rgba(200, 200, 200, 0.3)', showgrid=True),
+        yaxis=dict(title="Q Firmas", rangemode='tozero', gridcolor='rgba(200, 200, 200, 0.3)', showgrid=True),
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        template="simple_white"
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    
+
+#FORECAST FIRMA
+
+with tab2:
+    if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_gestion_activa.columns:
+        forecast_comp_df = df_gestion_activa.copy()
+        forecast_comp_df = forecast_comp_df[forecast_comp_df['Estatus Limpio'] != 'Firmado']
+        forecast_comp_df = forecast_comp_df.dropna(subset=['Forecast Firma', 'Forecast Móvil'])
+
+        forecast_comp_df['WeekNum_Original'] = pd.to_numeric(forecast_comp_df['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
+        forecast_comp_df['WeekNum_Movil'] = pd.to_numeric(forecast_comp_df['Forecast Móvil'].str.extract(r'(\d+)')[0], errors='coerce')
+
+        forecast_comp_df.dropna(subset=['WeekNum_Original', 'WeekNum_Movil'], inplace=True)
+        forecast_comp_df[['WeekNum_Original', 'WeekNum_Movil']] = forecast_comp_df[['WeekNum_Original', 'WeekNum_Movil']].astype(int)
+
+        forecast_comp_df['Variacion'] = forecast_comp_df['WeekNum_Movil'] - forecast_comp_df['WeekNum_Original']
+
+        def get_status_and_color(v):
+            if v > 0: return 'Retrasado', '#d93025'  # Rojo
+            if v < 0: return 'Adelantado', '#1e8e3e'  # Verde
+            return 'En Fecha', '#1a73e8'  # Azul
+
+        forecast_comp_df[['Status', 'Color']] = forecast_comp_df['Variacion'].apply(get_status_and_color).apply(pd.Series)
+
+        forecast_comp_df.sort_values(by=['WeekNum_Movil', 'Sitio'], ascending=[True, True], inplace=True)
+
+        if forecast_comp_df.empty:
+            st.info("No hay sitios con 'Forecast Firma' y 'Forecast Móvil' válidos para comparar.")
+        else:
+            fig = go.Figure()
+            legend_added = set()
+
+            for _, row in forecast_comp_df.iterrows():
+                y_pos = row['Sitio']
+                x_orig = row['WeekNum_Original']
+                x_movil = row['WeekNum_Movil']
+                color = row['Color']
+                status = row['Status']
+
+                show_legend = status not in legend_added
+                if show_legend:
+                    legend_added.add(status)
+
+                if row['Variacion'] == 0:
+                    fig.add_trace(go.Scatter(
+                        x=[x_movil], y=[y_pos],
+                        mode='markers+text',
+                        text=[str(x_movil)],
+                        textposition='middle right',
+                        textfont=dict(color='DarkSlateGrey', size=12),
+                        marker=dict(color=color, size=12, symbol='circle', line=dict(width=1, color='DarkSlateGrey')),
+                        hoverinfo='text',
+                        hovertext=f"<b>{row['Sitio']}</b><br>Forecast: W{x_movil}<br><b>(En Fecha)</b>",
+                        name=status,
+                        legendgroup=status,
+                        showlegend=show_legend
+                    ))
+                else:
+                    fig.add_shape(type='line', x0=x_orig, y0=y_pos, x1=x_movil, y1=y_pos,
+                                  line=dict(color='rgba(128, 128, 128, 0.5)', width=1.5, dash='dot'))
+
+                    fig.add_trace(go.Scatter(
+                        x=[x_orig], y=[y_pos],
+                        mode='markers+text',
+                        text=[str(x_orig)],
+                        textposition='middle left',
+                        textfont=dict(color='grey', size=10),
+                        marker=dict(color='grey', size=8, symbol='circle'),
+                        hoverinfo='text',
+                        hovertext=f"<b>{row['Sitio']}</b><br>F. Original: W{x_orig}",
+                        showlegend=False
+                    ))
+
+                    variacion_str = f"+{row['Variacion']}" if row['Variacion'] > 0 else str(row['Variacion'])
+                    hover_text_movil = f"<b>{row['Sitio']}</b><br>F. Móvil: W{x_movil}<br>F. Original: W{x_orig}<br>Variación: {variacion_str} semanas"
+
+                    fig.add_trace(go.Scatter(
+                        x=[x_movil], y=[y_pos],
+                        mode='markers+text',
+                        text=[str(x_movil)],
+                        textposition='middle right',
+                        textfont=dict(color='DarkSlateGrey', size=12),
+                        marker=dict(color=color, size=12, symbol='circle', line=dict(width=1, color='DarkSlateGrey')),
+                        hoverinfo='text',
+                        hovertext=hover_text_movil,
+                        name=status,
+                        legendgroup=status,
+                        showlegend=show_legend
+                    ))
+
+            fig.update_layout(
+                yaxis_title=None,
+                xaxis_title="Semana",
+                height=200 + len(forecast_comp_df) * 40,
+                yaxis=dict(type='category', categoryorder='array', categoryarray=forecast_comp_df['Sitio'].tolist()),
+                margin=dict(l=250, r=40, t=80, b=40),
+                plot_bgcolor='rgba(0,0,0,0)',
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, title_text='')
+            )
+
+            current_week = datetime.now().isocalendar().week
+            fig.add_vline(x=current_week, line_width=2, line_dash="dash", line_color="purple",
+                          annotation_text="Semana Actual", annotation_position="top left", annotation_font_color="purple")
+
+            st.plotly_chart(fig, use_container_width=True)
+
+    else:
+        st.info("Para ver la comparación, asegúrese de que el archivo Excel contenga las columnas 'Forecast Firma' y 'Forecast Móvil'.")
+
 st.subheader("📊 SEGUIMIENTO")
 total_sitios_filtrados = len(df_filtrado)
 estatus_excluir = ['Eliminado', 'Standby']
@@ -216,200 +412,6 @@ if 'Fecha TSS' in df_gestion_activa.columns:
 else:
     st.info("La columna 'Fecha TSS' no se encontró en los datos.")
 
-#FORECAST
-
-st.divider()
-st.subheader("FORECAST")
-tab1, tab2 = st.tabs(["FORECAST FIRMA", "FORECAST FIRMA ACUMULADO"])
-
-with tab1:
-    if 'Forecast Firma' in df_gestion_activa.columns and 'Forecast Móvil' in df_gestion_activa.columns:
-        forecast_comp_df = df_gestion_activa.copy()
-        forecast_comp_df = forecast_comp_df[forecast_comp_df['Estatus Limpio'] != 'Firmado']
-        forecast_comp_df = forecast_comp_df.dropna(subset=['Forecast Firma', 'Forecast Móvil'])
-
-        forecast_comp_df['WeekNum_Original'] = pd.to_numeric(forecast_comp_df['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
-        forecast_comp_df['WeekNum_Movil'] = pd.to_numeric(forecast_comp_df['Forecast Móvil'].str.extract(r'(\d+)')[0], errors='coerce')
-
-        forecast_comp_df.dropna(subset=['WeekNum_Original', 'WeekNum_Movil'], inplace=True)
-        forecast_comp_df[['WeekNum_Original', 'WeekNum_Movil']] = forecast_comp_df[['WeekNum_Original', 'WeekNum_Movil']].astype(int)
-
-        forecast_comp_df['Variacion'] = forecast_comp_df['WeekNum_Movil'] - forecast_comp_df['WeekNum_Original']
-
-        def get_status_and_color(v):
-            if v > 0: return 'Retrasado', '#d93025'  # Rojo
-            if v < 0: return 'Adelantado', '#1e8e3e'  # Verde
-            return 'En Fecha', '#1a73e8'  # Azul
-
-        forecast_comp_df[['Status', 'Color']] = forecast_comp_df['Variacion'].apply(get_status_and_color).apply(pd.Series)
-
-        forecast_comp_df.sort_values(by=['WeekNum_Movil', 'Sitio'], ascending=[True, True], inplace=True)
-
-        if forecast_comp_df.empty:
-            st.info("No hay sitios con 'Forecast Firma' y 'Forecast Móvil' válidos para comparar.")
-        else:
-            fig = go.Figure()
-            legend_added = set()
-
-            for _, row in forecast_comp_df.iterrows():
-                y_pos = row['Sitio']
-                x_orig = row['WeekNum_Original']
-                x_movil = row['WeekNum_Movil']
-                color = row['Color']
-                status = row['Status']
-
-                show_legend = status not in legend_added
-                if show_legend:
-                    legend_added.add(status)
-
-                if row['Variacion'] == 0:
-                    fig.add_trace(go.Scatter(
-                        x=[x_movil], y=[y_pos],
-                        mode='markers+text',
-                        text=[str(x_movil)],
-                        textposition='middle right',
-                        textfont=dict(color='DarkSlateGrey', size=12),
-                        marker=dict(color=color, size=12, symbol='circle', line=dict(width=1, color='DarkSlateGrey')),
-                        hoverinfo='text',
-                        hovertext=f"<b>{row['Sitio']}</b><br>Forecast: W{x_movil}<br><b>(En Fecha)</b>",
-                        name=status,
-                        legendgroup=status,
-                        showlegend=show_legend
-                    ))
-                else:
-                    fig.add_shape(type='line', x0=x_orig, y0=y_pos, x1=x_movil, y1=y_pos,
-                                  line=dict(color='rgba(128, 128, 128, 0.5)', width=1.5, dash='dot'))
-
-                    fig.add_trace(go.Scatter(
-                        x=[x_orig], y=[y_pos],
-                        mode='markers+text',
-                        text=[str(x_orig)],
-                        textposition='middle left',
-                        textfont=dict(color='grey', size=10),
-                        marker=dict(color='grey', size=8, symbol='circle'),
-                        hoverinfo='text',
-                        hovertext=f"<b>{row['Sitio']}</b><br>F. Original: W{x_orig}",
-                        showlegend=False
-                    ))
-
-                    variacion_str = f"+{row['Variacion']}" if row['Variacion'] > 0 else str(row['Variacion'])
-                    hover_text_movil = f"<b>{row['Sitio']}</b><br>F. Móvil: W{x_movil}<br>F. Original: W{x_orig}<br>Variación: {variacion_str} semanas"
-
-                    fig.add_trace(go.Scatter(
-                        x=[x_movil], y=[y_pos],
-                        mode='markers+text',
-                        text=[str(x_movil)],
-                        textposition='middle right',
-                        textfont=dict(color='DarkSlateGrey', size=12),
-                        marker=dict(color=color, size=12, symbol='circle', line=dict(width=1, color='DarkSlateGrey')),
-                        hoverinfo='text',
-                        hovertext=hover_text_movil,
-                        name=status,
-                        legendgroup=status,
-                        showlegend=show_legend
-                    ))
-
-            fig.update_layout(
-                yaxis_title=None,
-                xaxis_title="Semana",
-                height=200 + len(forecast_comp_df) * 40,
-                yaxis=dict(type='category', categoryorder='array', categoryarray=forecast_comp_df['Sitio'].tolist()),
-                margin=dict(l=250, r=40, t=80, b=40),
-                plot_bgcolor='rgba(0,0,0,0)',
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, title_text='')
-            )
-
-            current_week = datetime.now().isocalendar().week
-            fig.add_vline(x=current_week, line_width=2, line_dash="dash", line_color="purple",
-                          annotation_text="Semana Actual", annotation_position="top left", annotation_font_color="purple")
-
-            st.plotly_chart(fig, use_container_width=True)
-
-    else:
-        st.info("Para ver la comparación, asegúrese de que el archivo Excel contenga las columnas 'Forecast Firma' y 'Forecast Móvil'.")
-
-#FORECAST ACUMULADO
-
-with tab2:
-    df_forecast = df_gestion_activa.copy()
-    df_forecast['Week_Forecast'] = pd.to_numeric(df_forecast['Forecast Firma'].str.extract(r'(\d+)')[0], errors='coerce')
-    df_forecast['Week_Real'] = pd.to_numeric(df_forecast['Week Firma'].str.extract(r'(\d+)')[0], errors='coerce')
-    df_forecast_forecast = df_forecast.dropna(subset=['Week_Forecast']).copy()
-    df_forecast_forecast['Week_Forecast'] = df_forecast_forecast['Week_Forecast'].astype(int)
-    df_forecast_real = df_forecast.dropna(subset=['Week_Real']).copy()
-    df_forecast_real['Week_Real'] = df_forecast_real['Week_Real'].astype(int)
-    min_week = 12
-    max_week = 40
-    weeks_forecast = list(range(min_week, max_week + 1))
-    last_real_week = df_forecast_real['Week_Real'].max()
-
-    fig = go.Figure()
-    forecast_weekly = df_forecast_forecast.groupby('Week_Forecast').size().reindex(weeks_forecast, fill_value=0).tolist()
-    forecast_cum = pd.Series(forecast_weekly).cumsum().tolist()
-
-    fig.add_trace(go.Scatter(
-        x=weeks_forecast,
-        y=forecast_cum,
-        mode='lines+markers+text',
-        name='Forecast Acumulado',
-        line=dict(color='royalblue', width=2, dash='dash'),
-        marker=dict(size=6, symbol='circle-open', line=dict(color='royalblue', width=2)),
-        text=[str(v) if v != 0 else "" for v in forecast_cum],
-        textposition="top center",
-        textfont=dict(size=9, color="royalblue")
-    ))
-
-    import datetime
-
-    if not np.isnan(last_real_week):
-        last_real_week = int(last_real_week)
-
-        # Semana actual (hoy)
-        current_week = datetime.datetime.now().isocalendar().week
-        # Limitar a max_week en caso de que la semana actual sea mayor
-        end_week = min(current_week, max_week)
-
-        # Semanas con firmas reales
-        weeks_real_exist = list(range(min_week, last_real_week + 1))
-        real_weekly_exist = df_forecast_real.groupby('Week_Real').size().reindex(weeks_real_exist, fill_value=0).tolist()
-        real_cum_exist = pd.Series(real_weekly_exist).cumsum()
-
-        # Último valor acumulado
-        last_value = real_cum_exist.iloc[-1] if len(real_cum_exist) > 0 else 0
-
-        # Extender semanas hasta la semana actual
-        weeks_real_full = list(range(min_week, end_week + 1))
-        if end_week > last_real_week:
-            extension = [last_value] * (end_week - last_real_week)
-            real_cum_full = real_cum_exist.tolist() + extension
-        else:
-            real_cum_full = real_cum_exist.tolist()
-
-        fig.add_trace(go.Scatter(
-            x=weeks_real_full,
-            y=real_cum_full,
-            mode='lines+markers+text',
-            name='Real Acumulado',
-            line=dict(color='red', width=2),
-            marker=dict(size=6, symbol='circle-open', line=dict(color='red', width=2)),
-            text=[str(v) if v != 0 else "" for v in real_cum_full],
-            textposition="top center",
-            textfont=dict(size=9, color="red")
-        ))
-    else:
-        st.info("⚠️ No hay sitios con Week Firma para este filtro. Solo se muestra Forecast.")
-
-    fig.update_layout(
-        xaxis=dict(title="Semana", dtick=1, tickmode='linear',
-                   range=[min_week - 0.5, max_week + 0.5],
-                   tickvals=list(range(min_week, max_week + 1)),
-                   ticktext=[f"W{w}" for w in range(min_week, max_week + 1)],
-                   gridcolor='rgba(200, 200, 200, 0.3)', showgrid=True),
-        yaxis=dict(title="Q Firmas", rangemode='tozero', gridcolor='rgba(200, 200, 200, 0.3)', showgrid=True),
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
-        template="simple_white"
-    )
-    st.plotly_chart(fig, use_container_width=True)
 
 #MAPS
 
