@@ -108,6 +108,12 @@ if df_filtrado.empty:
 if 'selected_status' not in st.session_state:
     st.session_state.selected_status = None
 
+st.subheader("📊 SEGUIMIENTO")
+total_sitios_filtrados = len(df_filtrado)
+estatus_excluir = ['Eliminado', 'Standby']
+df_gestion_activa = df_filtrado[~df_filtrado['Estatus Limpio'].isin(estatus_excluir)]
+total_gestion_activa = len(df_gestion_activa)
+
 #FORECAST
 
 st.divider()
@@ -304,11 +310,6 @@ with tab2:
     else:
         st.info("Para ver la comparación, asegúrese de que el archivo Excel contenga las columnas 'Forecast Firma' y 'Forecast Móvil'.")
 
-st.subheader("📊 SEGUIMIENTO")
-total_sitios_filtrados = len(df_filtrado)
-estatus_excluir = ['Eliminado', 'Standby']
-df_gestion_activa = df_filtrado[~df_filtrado['Estatus Limpio'].isin(estatus_excluir)]
-total_gestion_activa = len(df_gestion_activa)
 
 l_spacer, col_total, col_activa, r_spacer = st.columns([1, 2, 2, 1])
 with col_total:
