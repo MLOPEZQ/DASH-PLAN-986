@@ -114,6 +114,21 @@ estatus_excluir = ['Eliminado', 'Standby']
 df_gestion_activa = df_filtrado[~df_filtrado['Estatus Limpio'].isin(estatus_excluir)]
 total_gestion_activa = len(df_gestion_activa)
 
+# --- MÉTRICAS VISUALES ---
+l_spacer, col_total, col_activa, r_spacer = st.columns([1, 2, 2, 1])
+with col_total:
+    st.markdown(f"""<div class="metric-card"><div class="metric-label">Total de Sitios</div><div class="metric-value">{total_sitios_filtrados}</div><div class="metric-spacer"> </div></div>""", unsafe_allow_html=True)
+    st.button("Ver Detalle de Todos", on_click=set_selected_status, args=('ALL',), use_container_width=True, key="btn_all_sites")
+with col_activa:
+    st.markdown(f"""<div class="metric-card"><div class="metric-label">Sitios en Gestión Activa</div><div class="metric-value">{total_gestion_activa}</div><div class="metric-spacer"> </div></div>""", unsafe_allow_html=True)
+    st.button("Ver Detalle Activos", on_click=set_selected_status, args=('ACTIVE',), use_container_width=True, key="btn_active_sites")
+
+if st.session_state.selected_status in ['ALL', 'ACTIVE']:
+    if st.session_state.selected_status == 'ALL':
+        display_detail_view(title="🗂️ Detalle: Total de Sitios", dataframe=df_filtrado)
+    elif st.session_state.selected_status == 'ACTIVE':
+        display_detail_view(title="⚙️ Detalle: Sitios en Gestión Activa", dataframe=df_gestion_activa)
+
 # --- FORECAST ---
 st.divider()
 st.subheader("FORECAST")
@@ -192,21 +207,6 @@ with tab1:
         template="simple_white"
     )
     st.plotly_chart(fig, use_container_width=True)
-
-# --- MÉTRICAS VISUALES ---
-l_spacer, col_total, col_activa, r_spacer = st.columns([1, 2, 2, 1])
-with col_total:
-    st.markdown(f"""<div class="metric-card"><div class="metric-label">Total de Sitios</div><div class="metric-value">{total_sitios_filtrados}</div><div class="metric-spacer"> </div></div>""", unsafe_allow_html=True)
-    st.button("Ver Detalle de Todos", on_click=set_selected_status, args=('ALL',), use_container_width=True, key="btn_all_sites")
-with col_activa:
-    st.markdown(f"""<div class="metric-card"><div class="metric-label">Sitios en Gestión Activa</div><div class="metric-value">{total_gestion_activa}</div><div class="metric-spacer"> </div></div>""", unsafe_allow_html=True)
-    st.button("Ver Detalle Activos", on_click=set_selected_status, args=('ACTIVE',), use_container_width=True, key="btn_active_sites")
-
-if st.session_state.selected_status in ['ALL', 'ACTIVE']:
-    if st.session_state.selected_status == 'ALL':
-        display_detail_view(title="🗂️ Detalle: Total de Sitios", dataframe=df_filtrado)
-    elif st.session_state.selected_status == 'ACTIVE':
-        display_detail_view(title="⚙️ Detalle: Sitios en Gestión Activa", dataframe=df_gestion_activa)
 
 # --- CRONOGRAMA TSS ---
 st.divider()
